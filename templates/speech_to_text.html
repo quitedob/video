@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>语音转文字 - 智能视频字幕处理工作站</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="/static/js/speech_to_text.js"></script>
+    <style>
+        /* 全局样式 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* 头部样式 */
+        .header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            margin: 20px 0;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .header h1 {
+            color: white;
+            font-size: 2rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header h1 i {
+            color: #ffd700;
+            font-size: 2.2rem;
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 15px;
+        }
+
+        .nav-link {
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .nav-link:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .nav-link.active {
+            background: rgba(255, 255, 255, 0.3);
+            font-weight: 600;
+        }
+
+        .system-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: white;
+            font-size: 0.9rem;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ffa500;
+        }
+
+        .status-indicator.connected {
+            background: #4caf50;
+        }
+
+        .status-indicator.disconnected {
+            background: #f44336;
+        }
+
+        /* 主要内容 */
+        .main-content {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        /* 上传区域 */
+        .upload-section {
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .upload-container {
+            background: #f8f9fa;
+            border: 2px dashed #dee2e6;
+            border-radius: 15px;
+            padding: 20px;
+            transition: all 0.3s ease;
+            min-height: 200px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .upload-container:hover {
+            border-color: #007bff;
+            background: #f0f8ff;
+        }
+
+        .upload-container.dragover {
+            border-color: #28a745;
+            background: #f0fff0;
+        }
+
+        .file-upload-area {
+            cursor: pointer;
+            text-align: center;
+            padding: 30px 20px;
+            transition: all 0.3s ease;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .file-upload-area:hover {
+            background: #e3f2fd;
+        }
+
+        .upload-placeholder {
+            color: #6c757d;
+        }
+
+        .upload-placeholder i {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            color: #007bff;
+        }
+
+        /* 控制面板 */
+        .control-panel {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 15px;
+            gap: 20px;
+        }
+
+        .left-controls {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .right-controls {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        /* 折叠面板容器 */
+        .collapsible-panels {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        /* 折叠面板 */
+        .collapsible-panel {
+            flex: 1;
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+            padding: 10px 15px;
+            background: #f0f0f0;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .panel-header:hover {
+            background: #e0e0e0;
+        }
+
+        .panel-header h3 {
+            font-size: 1rem;
+            color: #495057;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .panel-header i {
+            transition: transform 0.3s ease;
+        }
+
+        .panel-header i.rotated {
+            transform: rotate(180deg);
+        }
+
+        .panel-content {
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            margin-top: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: none;
+        }
+
+        .panel-content.active {
+            display: block;
+        }
+
+        /* 文件信息样式 */
+        .file-info {
+            margin-top: 10px;
+        }
+
+        .file-info-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        .file-info-label {
+            font-weight: 500;
+            color: #495057;
+        }
+
+        .file-info-value {
+            color: #6c757d;
+        }
+
+        .validation-error {
+            color: #dc3545;
+            font-size: 0.9rem;
+            margin-top: 10px;
+        }
+
+        .validation-success {
+            color: #28a745;
+            font-size: 0.9rem;
+            margin-top: 10px;
+        }
+
+        /* 处理选项样式 */
+        .options-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #495057;
+            font-size: 0.9rem;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+        }
+
+        /* 操作按钮 */
+        .action-section {
+            margin-top: 15px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #545b62;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn:disabled:hover {
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* 状态区域 */
+        .status-section {
+            padding: 10px;
+            background: #e9ecef;
+            border-radius: 8px;
+            font-size: 0.85rem;
+        }
+
+        .task-info {
+            font-weight: 500;
+            color: #495057;
+            margin-bottom: 5px;
+        }
+
+        .progress-message {
+            color: #6c757d;
+            margin-bottom: 10px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #dee2e6;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 5px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #007bff, #0056b3);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .console {
+            background: #000;
+            color: #28a745;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.8rem;
+            padding: 8px;
+            border-radius: 6px;
+            margin-top: 8px;
+            max-height: 80px;
+            overflow-y: auto;
+        }
+
+        /* 实时转写区域 */
+        .live-transcript-section {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .live-transcript-section h3 {
+            font-size: 1rem;
+            margin-bottom: 10px;
+            color: #495057;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .live-container {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            border: 1px solid #dee2e6;
+            flex-grow: 1;
+            overflow-y: auto;
+            max-height: 250px;
+        }
+
+        .chunk {
+            padding: 6px 10px;
+            margin-bottom: 6px;
+            background: white;
+            border-radius: 4px;
+            border-left: 3px solid #007bff;
+            font-size: 0.85rem;
+            line-height: 1.4;
+        }
+
+        .chunk.final {
+            border-left-color: #28a745;
+            background: #f0fff0;
+        }
+
+        /* 进度区域 */
+        .progress-section {
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .progress-container {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 15px;
+            border: 1px solid #dee2e6;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .progress-header h3 {
+            color: #495057;
+            font-size: 1.1rem;
+        }
+
+        .progress-percentage {
+            font-weight: 600;
+            color: #007bff;
+        }
+
+        .progress-message {
+            color: #6c757d;
+            font-style: italic;
+            font-size: 0.9rem;
+        }
+
+        .segment-progress {
+            margin-top: 15px;
+        }
+
+        .segment-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            color: #6c757d;
+            font-size: 0.85rem;
+        }
+
+        /* 日志区域 */
+        .log-section {
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .log-container {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 15px;
+            border: 1px solid #dee2e6;
+        }
+
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .log-header h3 {
+            color: #495057;
+            font-size: 1.1rem;
+        }
+
+        .log-content {
+            background: #000;
+            border-radius: 8px;
+            padding: 12px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.8rem;
+            color: #28a745;
+        }
+
+        .log-entry {
+            margin-bottom: 4px;
+            line-height: 1.3;
+        }
+
+        .log-entry.info {
+            color: #28a745;
+        }
+
+        .log-entry.error {
+            color: #dc3545;
+        }
+
+        .log-entry.warning {
+            color: #ffc107;
+        }
+
+        .log-entry.debug {
+            color: #6c757d;
+        }
+
+        .log-clear {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 4px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+        }
+
+        .log-clear:hover {
+            background: #545b62;
+        }
+
+        /* 结果区域 */
+        .result-section {
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .result-container {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 15px;
+            border: 1px solid #dee2e6;
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .result-header h3 {
+            color: #495057;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 1.1rem;
+        }
+
+        .result-content {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            border: 1px solid #dee2e6;
+        }
+
+        .result-text {
+            line-height: 1.6;
+            white-space: pre-wrap;
+            font-family: 'Monaco', 'Consolas', monospace;
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-size: 0.9rem;
+        }
+
+        .result-actions {
+            margin-top: 12px;
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        /* 通知样式 */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 1100;
+            animation: slideIn 0.3s ease;
+        }
+
+        .notification.success {
+            border-left: 4px solid #28a745;
+        }
+
+        .notification.error {
+            border-left: 4px solid #dc3545;
+        }
+
+        .notification.info {
+            border-left: 4px solid #17a2b8;
+        }
+
+        .notification.warning {
+            border-left: 4px solid #ffc107;
+        }
+
+        .notification-content {
+            padding: 12px 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            min-width: 250px;
+        }
+
+        .notification-message {
+            flex: 1;
+            margin-right: 12px;
+            font-size: 0.9rem;
+        }
+
+        .notification-close {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+
+        /* 动画 */
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* 加载动画 */
+        .loading-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .container {
+                padding: 0 10px;
+            }
+
+            .header-content {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .header h1 {
+                font-size: 1.5rem;
+            }
+
+            .nav-links {
+                flex-direction: column;
+                width: 100%;
+            }
+
+            .collapsible-panels {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .control-panel {
+                flex-direction: column;
+            }
+
+            .notification-content {
+                min-width: 200px;
+            }
+
+            .result-actions {
+                flex-direction: column;
+            }
+        }
+
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="header-content">
+                <h1><i class="fas fa-microphone"></i> 语音转文字</h1>
+                <div class="header-controls">
+                    <div class="nav-links">
+                        <a href="/" class="nav-link">
+                            <i class="fas fa-video"></i> 视频字幕
+                        </a>
+                        <a href="/speech" class="nav-link active">
+                            <i class="fas fa-microphone"></i> 语音转文字
+                        </a>
+                    </div>
+                    <div class="system-status" id="systemStatus">
+                        <span class="status-indicator" id="statusIndicator"></span>
+                        <span id="statusText">检查中...</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <!-- 折叠面板控制 -->
+            <div class="collapsible-panels">
+                <div class="collapsible-panel">
+                    <div class="panel-header" id="fileInfoToggle">
+                        <h3><i class="fas fa-info-circle"></i> 文件信息</h3>
+                        <i class="fas fa-chevron-down"></i>
+                    </div>
+                    <div class="panel-content" id="fileInfoPanel">
+                        <div class="file-info" id="fileInfo" style="display: none;">
+                            <div class="file-info-item">
+                                <span class="file-info-label">文件名:</span>
+                                <span class="file-info-value" id="fileName"></span>
+                            </div>
+                            <div class="file-info-item">
+                                <span class="file-info-label">文件大小:</span>
+                                <span class="file-info-value" id="fileSize"></span>
+                            </div>
+                            <div class="file-info-item">
+                                <span class="file-info-label">文件类型:</span>
+                                <span class="file-info-value" id="fileType"></span>
+                            </div>
+                            <div class="file-info-item">
+                                <span class="file-info-label">时长:</span>
+                                <span class="file-info-value" id="fileDuration">计算中...</span>
+                            </div>
+                            <div id="validationMessage"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="collapsible-panel">
+                    <div class="panel-header" id="processingOptionsToggle">
+                        <h3><i class="fas fa-cogs"></i> 处理选项</h3>
+                        <i class="fas fa-chevron-down"></i>
+                    </div>
+                    <div class="panel-content" id="processingOptionsPanel">
+                        <div class="options-grid">
+                            <div class="form-group">
+                                <label>处理设备:</label>
+                                <select id="device">
+                                    <option value="auto">自动选择</option>
+                                    <option value="cuda:0" selected>GPU (CUDA)</option>
+                                    <option value="cpu">CPU</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>语言:</label>
+                                <select id="language">
+                                    <option value="auto">自动检测</option>
+                                    <option value="zh">中文</option>
+                                    <option value="en">英文</option>
+                                    <option value="ja">日语</option>
+                                    <option value="ko">韩语</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>分段大小 (分钟):</label>
+                                <input type="number" id="segmentDuration" value="3" min="1" max="10">
+                            </div>
+                            <div class="form-group">
+                                <label>处理模式:</label>
+                                <select id="processMode">
+                                    <option value="legacy">传统模式 (批量处理)</option>
+                                    <option value="streaming" selected>流式模式 (实时处理)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 上传区域 -->
+            <div class="upload-section">
+                <div class="upload-container" id="uploadContainer">
+                    <div class="file-upload-area" id="fileUploadArea">
+                        <div class="upload-placeholder">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p>拖拽音频或视频文件到此处或点击选择</p>
+                            <small>支持格式：MP3, WAV, M4A, MP4, AVI, MOV, MKV等</small>
+                            <small style="display: block; margin-top: 5px;">最大文件大小：500MB</small>
+                        </div>
+                        <input type="file" id="mediaFile" accept="audio/*,video/*" hidden>
+                    </div>
+
+                    <div class="control-panel">
+                        <div class="left-controls">
+                            <div class="action-section">
+                                <button id="startBtn" class="btn btn-primary" disabled>
+                                    <i class="fas fa-play"></i> 开始转换
+                                </button>
+                                <button id="stopBtn" class="btn btn-danger" disabled style="display: none;">
+                                    <i class="fas fa-stop"></i> 停止转换
+                                </button>
+                                <a id="downloadLink" class="btn btn-secondary" style="display: none;" download>
+                                    <i class="fas fa-download"></i> 下载结果
+                                </a>
+                            </div>
+                            
+                            <div class="status-section">
+                                <div class="task-info" id="taskInfo">任务ID: 未启动</div>
+                                <div class="progress-message" id="statusMsg">就绪</div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" id="progressFill" style="width: 0%;"></div>
+                                </div>
+                                <div class="console" id="console">控制台: 等待操作...</div>
+                            </div>
+                        </div>
+                        
+                        <div class="right-controls">
+                            <div class="live-transcript-section">
+                                <h3><i class="fas fa-microphone"></i> 实时转写</h3>
+                                <div class="live-container" id="liveContainer">
+                                    <div class="chunk">等待转写结果...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 其他部分保持不变 -->
+            <div class="log-section" id="logSection">
+                <div class="log-container">
+                    <div class="log-header">
+                        <h3><i class="fas fa-terminal"></i> 处理日志</h3>
+                        <button id="clearLogBtn" class="log-clear">
+                            <i class="fas fa-trash"></i> 清空
+                        </button>
+                    </div>
+                    <div class="log-content" id="logContent">
+                        <div class="log-entry info">等待开始处理...</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="progress-section" id="progressSection">
+                <div class="progress-container">
+                    <div class="progress-header">
+                        <h3>转换进度</h3>
+                        <span class="progress-percentage" id="progressPercentage">0%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-message" id="progressMessage">准备中...</div>
+
+                    <div class="segment-progress" id="segmentProgress" style="display: none;">
+                        <div class="segment-info">
+                            <span>当前段: <span id="currentSegment">1</span></span>
+                            <span>总段数: <span id="totalSegments">-</span></span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="segmentProgressFill" style="background: #28a745;"></div>
+                        </div>
+                        <div class="progress-message" id="segmentMessage">处理当前段...</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="result-section" id="resultSection">
+                <div class="result-container">
+                    <div class="result-header">
+                        <h3><i class="fas fa-check-circle"></i> 转换完成</h3>
+                    </div>
+                    <div class="result-content">
+                        <div class="result-text" id="resultText">转换结果将显示在这里...</div>
+                        <div class="result-actions">
+                            <button id="copyBtn" class="btn btn-secondary btn-small">
+                                <i class="fas fa-copy"></i> 复制文本
+                            </button>
+                            <button id="clearBtn" class="btn btn-secondary btn-small">
+                                <i class="fas fa-trash"></i> 清空
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // 文件上传逻辑
+        const fileUploadArea = document.getElementById('fileUploadArea');
+        const mediaFile = document.getElementById('mediaFile');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const fileType = document.getElementById('fileType');
+        const fileDuration = document.getElementById('fileDuration');
+        const validationMessage = document.getElementById('validationMessage');
+        const startBtn = document.getElementById('startBtn');
+
+        // 点击上传区域触发文件选择
+        fileUploadArea.addEventListener('click', () => {
+            mediaFile.click();
+        });
+
+        // 处理文件选择
+        mediaFile.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        // 拖放功能
+        const uploadContainer = document.getElementById('uploadContainer');
+        
+        uploadContainer.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadContainer.classList.add('dragover');
+        });
+
+        uploadContainer.addEventListener('dragleave', () => {
+            uploadContainer.classList.remove('dragover');
+        });
+
+        uploadContainer.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadContainer.classList.remove('dragover');
+            
+            if (e.dataTransfer.files.length > 0) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        // 处理文件
+        function handleFile(file) {
+            // 验证文件类型
+            const validTypes = ['audio/mp3', 'audio/wav', 'audio/m4a', 'audio/flac', 
+                               'video/mp4', 'video/avi', 'video/quicktime', 'video/x-matroska'];
+            
+            if (!validTypes.includes(file.type)) {
+                validationMessage.innerHTML = `<div class="validation-error">不支持的文件类型: ${file.type}</div>`;
+                fileInfo.style.display = 'none';
+                startBtn.disabled = true;
+                return;
+            }
+            
+            // 验证文件大小 (500MB)
+            const maxSize = 500 * 1024 * 1024;
+            if (file.size > maxSize) {
+                validationMessage.innerHTML = `<div class="validation-error">文件太大: ${(file.size / (1024*1024)).toFixed(2)}MB (最大500MB)</div>`;
+                fileInfo.style.display = 'none';
+                startBtn.disabled = true;
+                return;
+            }
+            
+            // 显示文件信息
+            fileName.textContent = file.name;
+            fileSize.textContent = formatFileSize(file.size);
+            fileType.textContent = file.type;
+            fileDuration.textContent = '计算中...';
+            
+            fileInfo.style.display = 'block';
+            validationMessage.innerHTML = `<div class="validation-success">文件验证通过</div>`;
+            startBtn.disabled = false;
+            
+            // 模拟计算文件时长
+            setTimeout(() => {
+                fileDuration.textContent = '00:05:23'; // 示例时长
+            }, 1000);
+        }
+
+        // 格式化文件大小
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            else if (bytes < 1048576) return (bytes / 1024).toFixed(2) + ' KB';
+            else return (bytes / 1048576).toFixed(2) + ' MB';
+        }
+
+        // 开始转换按钮逻辑
+        startBtn.addEventListener('click', () => {
+            // 模拟开始处理
+            startBtn.disabled = true;
+            startBtn.style.display = 'none';
+            document.getElementById('stopBtn').style.display = 'inline-flex';
+            
+            document.getElementById('statusMsg').textContent = '处理中...';
+            document.getElementById('console').textContent = '开始提取音频...';
+            
+            // 模拟进度更新
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += 5;
+                document.getElementById('progressFill').style.width = `${progress}%`;
+                
+                if (progress >= 100) {
+                    clearInterval(progressInterval);
+                    document.getElementById('statusMsg').textContent = '处理完成';
+                    document.getElementById('console').textContent = '处理完成，生成结果中...';
+                    
+                    // 显示结果
+                    setTimeout(() => {
+                        document.getElementById('resultSection').style.display = 'block';
+                        document.getElementById('resultText').textContent = '这是语音转文字的示例结果。在实际应用中，这里将显示从音频中提取的文本内容。';
+                        document.getElementById('downloadLink').style.display = 'inline-flex';
+                        document.getElementById('stopBtn').style.display = 'none';
+                    }, 1000);
+                }
+            }, 500);
+        });
+
+        // 停止转换按钮逻辑
+        document.getElementById('stopBtn').addEventListener('click', () => {
+            // 模拟停止处理
+            document.getElementById('statusMsg').textContent = '已停止';
+            document.getElementById('console').textContent = '用户请求停止处理';
+            
+            startBtn.disabled = false;
+            startBtn.style.display = 'inline-flex';
+            document.getElementById('stopBtn').style.display = 'none';
+        });
+
+        // 复制文本按钮逻辑
+        document.getElementById('copyBtn').addEventListener('click', () => {
+            const resultText = document.getElementById('resultText').textContent;
+            navigator.clipboard.writeText(resultText).then(() => {
+                // 显示成功消息
+                alert('文本已复制到剪贴板');
+            });
+        });
+
+        // 清空按钮逻辑
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            document.getElementById('resultText').textContent = '';
+        });
+
+        // 清空日志按钮逻辑
+        document.getElementById('clearLogBtn').addEventListener('click', () => {
+            document.getElementById('logContent').innerHTML = '<div class="log-entry info">日志已清空</div>';
+        });
+    </script>
+</body>
+</html>
