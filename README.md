@@ -222,7 +222,7 @@ tail -f logs/asr.log
 
 项目维护者: quitedob    
 
-项目链接: [GitHub 仓库地址]
+项目链接: https://github.com/quitedob/video
 
 ---
 
