@@ -3,6 +3,7 @@
 
 import os  # 环境变量
 import ssl  # SSL支持
+from pathlib import Path  # 路径处理
 from flask import Flask, render_template  # Flask核心
 from flask_socketio import SocketIO, emit  # WebSocket支持
 from flask_cors import CORS  # 跨域支持
@@ -84,8 +85,27 @@ def speech_to_text_page():  # 语音转文字页面函数
                           missing_deps=deps['missing_deps'])  # 缺失依赖
 
 
+def load_env_file():
+    """加载.env文件中的环境变量"""
+    env_file = Path(__file__).parent / ".env"
+    if env_file.exists():
+        with open(env_file, 'r', encoding='utf-8') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    os.environ[key.strip()] = value.strip()
+        print("已加载 .env 文件配置")
+    else:
+        print("未找到 .env 文件，使用环境变量或默认配置")
+
+
 def main():  # 主函数
     """启动Web服务器"""  # 文档
+
+    # 加载.env文件
+    load_env_file()
+
     # 规范 CUDA 设备顺序并默认选择第 0 块 GPU（可通过环境变量覆盖）
     os.environ.setdefault("CUDA_DEVICE_ORDER", "PCI_BUS_ID")  # 设备排序
     os.environ.setdefault("CUDA_VISIBLE_DEVICES", "0")  # 默认可见设备

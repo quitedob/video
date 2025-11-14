@@ -82,14 +82,22 @@ def upload_file():  # 上传处理
 
     # 保存上传的文件
     filename = secure_filename(file.filename)  # 安全文件名
-    video_path = os.path.join('uploads', f'{task_id}_{filename}')  # 视频路径
+    file_path = os.path.join('uploads', f'{task_id}_{filename}')  # 文件路径
     os.makedirs('uploads', exist_ok=True)  # 确保目录存在
-    file.save(video_path)  # 保存文件
+    file.save(file_path)  # 保存文件
+
+    # 检测文件类型（音频或视频）
+    file_type = 'unknown'
+    if file.mimetype.startswith('audio/') or filename.lower().endswith(('.mp3', '.wav', '.m4a', '.flac')):
+        file_type = 'audio'
+    elif file.mimetype.startswith('video/') or filename.lower().endswith(('.mp4', '.avi', '.mov', '.mkv', '.webm')):
+        file_type = 'video'
 
     # 初始化任务状态
     video_tasks[task_id] = {  # 任务状态
         'status': 'uploaded',  # 状态
-        'video_path': video_path,  # 视频路径
+        'file_path': file_path,  # 文件路径
+        'file_type': file_type,  # 文件类型
         'progress': 0,  # 进度
         'message': '文件上传完成'  # 消息
     }  # 结束
@@ -120,34 +128,55 @@ def process_video():  # 视频处理
             video_path = download_video(url, Path('temp_web'),  # 下载视频
                                        lambda p, m: emit_progress(temp_task_id, 10 + int(p * 0.4), m))  # 进度回调
             task_id = str(uuid.uuid4())  # 生成新任务ID
-            video_tasks[task_id] = {'status': 'downloaded', 'video_path': video_path}  # 任务状态
+            video_tasks[task_id] = {  # 任务状态
+                'status': 'downloaded',  # 状态
+                'file_path': video_path,  # 文件路径
+                'file_type': 'video'  # 文件类型（URL下载的都是视频）
+            }  # 结束
         except Exception as e:  # 下载失败
             return jsonify({'error': f'下载失败: {str(e)}'}), 500  # 错误响应
     else:  # 使用上传的文件
         if task_id not in video_tasks:  # 任务不存在
             return jsonify({'error': '任务不存在'}), 404  # 错误响应
-        video_path = video_tasks[task_id]['video_path']  # 获取视频路径
+        file_path = video_tasks[task_id]['file_path']  # 获取文件路径
+        file_type = video_tasks[task_id].get('file_type', 'unknown')  # 获取文件类型
 
-    # 提取音频
-    try:  # 尝试提取
-        emit_progress(task_id, 50, '正在提取音频...')  # 进度提示
+    # 处理音频（从视频提取或直接转换音频文件）
+    try:  # 尝试处理
+        emit_progress(task_id, 50, f'正在处理{file_type}文件...')  # 进度提示
         audio_path = os.path.join('temp_web', f'{task_id}_audio.wav')  # 音频路径
         os.makedirs('temp_web', exist_ok=True)  # 确保目录存在
-        extract_audio_wav16k(video_path, audio_path,  # 提取音频
-                            lambda p, m: emit_progress(task_id, 50 + int(p * 0.2), m),  # 进度回调
-                            timeout_seconds=600)  # 超时时间
+
+        if file_type == 'video':
+            # 从视频提取音频
+            extract_audio_wav16k(file_path, audio_path,  # 提取音频
+                                lambda p, m: emit_progress(task_id, 50 + int(p * 0.2), m),  # 进度回调
+                                timeout_seconds=600)  # 超时时间
+        else:
+            # 音频文件直接转换为WAV格式
+            # 使用FFmpeg将音频文件转换为16kHz WAV格式
+            import subprocess
+            cmd = [
+                'ffmpeg', '-i', file_path,
+                '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1',
+                '-y', audio_path
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            emit_progress(task_id, 70, '音频格式转换完成')  # 进度提示
 
         video_tasks[task_id].update({  # 更新任务状态
             'status': 'audio_extracted',  # 状态
-            'audio_path': audio_path  # 音频路径
+            'audio_path': audio_path,  # 音频路径
+            'file_type': file_type  # 文件类型
         })  # 结束
 
-    except Exception as e:  # 提取失败
-        return jsonify({'error': f'音频提取失败: {str(e)}'}), 500  # 错误响应
+    except Exception as e:  # 处理失败
+        return jsonify({'error': f'音频处理失败: {str(e)}'}), 500  # 错误响应
 
     # 语音识别
     try:  # 尝试识别
-        emit_progress(task_id, 70, '正在进行语音识别...')  # 进度提示
+        asr_start_progress = 75 if file_type == 'video' else 75  # 根据文件类型调整进度起点
+        emit_progress(task_id, asr_start_progress, '正在进行语音识别...')  # 进度提示
 
         # 创建ASR模型
         device = options.get('device', 'auto')  # 获取设备参数
@@ -183,7 +212,7 @@ def process_video():  # 视频处理
             emit_progress(task_id, 90, '正在翻译字幕...')  # 进度提示
 
             segments = translate_segments(segments,  # 翻译段落
-                                        lambda p, m: emit_progress(task_id, 90 + int(p * 0.05), m))  # 进度回调
+                                        progress_callback=lambda p, m: emit_progress(task_id, 90 + int(p * 0.05), m))  # 进度回调
             video_tasks[task_id].update({  # 更新任务状态
                 'status': 'translated',  # 状态
                 'segments': segments  # 翻译结果

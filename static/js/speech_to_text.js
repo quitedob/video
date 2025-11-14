@@ -167,6 +167,15 @@ function cleanAsrText(text) {
 
 // ----- 绑定事件监听器 -----
 function bindEvents() {
+  // 文件预览删除按钮
+  const filePreviewDelete = document.getElementById('filePreviewDelete');
+  if (filePreviewDelete) {
+    filePreviewDelete.addEventListener('click', () => {
+      console.log('[前端-文件] 删除按钮被点击');
+      clearFilePreview();
+    });
+  }
+
   // 折叠面板事件监听器
   console.log('[前端-事件] 设置折叠面板事件监听器');
   const fileInfoToggle = document.getElementById('fileInfoToggle');
@@ -218,7 +227,7 @@ function bindEvents() {
     currentTaskId = 'client-' + Date.now() + '-' + Math.random().toString(36).slice(2,8);
     console.log('[前端-按钮] 生成客户端task_id:', currentTaskId);
 
-    const file = mediaFile.files[0];
+    const file = selectedFile;
     if (!file) {
       console.log('[前端-按钮] 未选择文件，显示提示');
       alert('请先选择要处理的媒体文件');
@@ -374,6 +383,9 @@ function bindEvents() {
 
   // 为实时转写区域添加复制全文按钮
   addCopyButtonToLiveSection();
+
+  // 初始化聊天功能
+  initChatFeature();
 }
 
 // ----- HTTP 请求处理 -----
@@ -607,6 +619,9 @@ function checkSystemStatus() {
   console.log('[前端-系统] 系统状态检查完成');
 }
 
+// 当前选择的文件
+let selectedFile = null;
+
 function handleFileSelect(e) {
   console.log('[前端-文件] 文件选择事件触发:', e);
   const file = e.target.files[0];
@@ -618,48 +633,256 @@ function handleFileSelect(e) {
       lastModified: new Date(file.lastModified).toISOString()
     });
 
-    // 更新文件信息显示
-    const fileInfo = document.getElementById('fileInfo');
-    const fileName = document.getElementById('fileName');
-    const fileSize = document.getElementById('fileSize');
-    const fileType = document.getElementById('fileType');
-    const fileDuration = document.getElementById('fileDuration');
-
-    if (fileName) fileName.textContent = file.name;
-    if (fileSize) fileSize.textContent = formatFileSize(file.size);
-    if (fileType) fileType.textContent = file.type || '未知';
-
-    if (fileInfo) fileInfo.style.display = 'block';
-
-    console.log('[前端-文件] 文件信息已更新到UI');
-
-    // 获取媒体时长
-    if (file.type.startsWith('audio/') || file.type.startsWith('video/')) {
-      console.log('[前端-文件] 开始获取媒体时长');
-      const url = URL.createObjectURL(file);
-      const media = document.createElement(file.type.startsWith('video/') ? 'video' : 'audio');
-      media.src = url;
-      media.onloadedmetadata = () => {
-        const minutes = Math.floor(media.duration / 60);
-        const seconds = Math.floor(media.duration % 60);
-        const durationStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-        if (fileDuration) fileDuration.textContent = durationStr;
-        console.log('[前端-文件] 媒体时长获取成功:', durationStr, '总秒数:', media.duration);
-        URL.revokeObjectURL(url);
-      };
-      media.onerror = (error) => {
-        console.error('[前端-文件] 获取媒体时长失败:', error);
-      };
-    } else {
-      console.log('[前端-文件] 非媒体文件，跳过时长获取');
-    }
-
     // 验证文件
     console.log('[前端-文件] 开始验证文件');
-    validateFile(file);
+    if (!validateFile(file)) {
+      return;
+    }
+
+    // 保存文件引用
+    selectedFile = file;
+
+    // 显示文件预览
+    showFilePreview(file);
+
+    // 启用开始按钮
+    if (startBtn) startBtn.disabled = false;
+
+    console.log('[前端-文件] 文件预览已显示');
   } else {
     console.log('[前端-文件] 未选择任何文件');
   }
+}
+
+// 显示文件预览
+function showFilePreview(file) {
+  const filePreviewCard = document.getElementById('filePreviewCard');
+  const fileUploadArea = document.getElementById('fileUploadArea');
+  const filePreviewName = document.getElementById('filePreviewName');
+  const filePreviewSize = document.getElementById('filePreviewSize');
+  const filePreviewType = document.getElementById('filePreviewType');
+  const filePreviewDuration = document.getElementById('filePreviewDuration');
+  const filePreviewIcon = document.getElementById('filePreviewIcon');
+  const filePreviewThumbnail = document.getElementById('filePreviewThumbnail');
+
+  // 显示预览卡片，隐藏上传区域
+  if (filePreviewCard) filePreviewCard.classList.add('active');
+  if (fileUploadArea) fileUploadArea.style.display = 'none';
+
+  // 设置文件信息
+  if (filePreviewName) filePreviewName.textContent = file.name;
+  if (filePreviewSize) filePreviewSize.textContent = formatFileSize(file.size);
+  if (filePreviewType) filePreviewType.textContent = file.type || '未知';
+
+  // 设置图标
+  if (filePreviewIcon) {
+    if (file.type.startsWith('audio/')) {
+      filePreviewIcon.className = 'fas fa-file-audio file-preview-icon audio';
+    } else if (file.type.startsWith('video/')) {
+      filePreviewIcon.className = 'fas fa-file-video file-preview-icon video';
+    } else {
+      filePreviewIcon.className = 'fas fa-file file-preview-icon';
+    }
+  }
+
+  // 获取媒体时长和缩略图
+  if (file.type.startsWith('audio/') || file.type.startsWith('video/')) {
+    const url = URL.createObjectURL(file);
+    const media = document.createElement(file.type.startsWith('video/') ? 'video' : 'audio');
+    media.src = url;
+    
+    media.onloadedmetadata = () => {
+      const minutes = Math.floor(media.duration / 60);
+      const seconds = Math.floor(media.duration % 60);
+      const durationStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+      if (filePreviewDuration) filePreviewDuration.textContent = durationStr;
+      
+      // 如果是视频，显示预览
+      if (file.type.startsWith('video/') && filePreviewThumbnail) {
+        filePreviewThumbnail.src = url;
+        filePreviewThumbnail.classList.add('active');
+      }
+      
+      console.log('[前端-文件] 媒体时长获取成功:', durationStr);
+    };
+    
+    media.onerror = (error) => {
+      console.error('[前端-文件] 获取媒体时长失败:', error);
+      if (filePreviewDuration) filePreviewDuration.textContent = '未知';
+    };
+  }
+}
+
+// 删除文件预览
+function clearFilePreview() {
+  const filePreviewCard = document.getElementById('filePreviewCard');
+  const fileUploadArea = document.getElementById('fileUploadArea');
+  const filePreviewThumbnail = document.getElementById('filePreviewThumbnail');
+  const mediaFile = document.getElementById('mediaFile');
+
+  // 隐藏预览卡片，显示上传区域
+  if (filePreviewCard) filePreviewCard.classList.remove('active');
+  if (fileUploadArea) fileUploadArea.style.display = 'flex';
+
+  // 清除缩略图
+  if (filePreviewThumbnail) {
+    filePreviewThumbnail.classList.remove('active');
+    if (filePreviewThumbnail.src) {
+      URL.revokeObjectURL(filePreviewThumbnail.src);
+      filePreviewThumbnail.src = '';
+    }
+  }
+
+  // 清除文件输入
+  if (mediaFile) mediaFile.value = '';
+
+  // 清除文件引用
+  selectedFile = null;
+
+  // 禁用开始按钮
+  if (startBtn) startBtn.disabled = true;
+
+  console.log('[前端-文件] 文件预览已清除');
+}
+
+// 显示文件预览
+function showFilePreview(file) {
+  const fileUploadArea = document.getElementById('fileUploadArea');
+  const uploadPlaceholder = fileUploadArea.querySelector('.upload-placeholder');
+  
+  // 隐藏上传提示
+  if (uploadPlaceholder) {
+    uploadPlaceholder.style.display = 'none';
+  }
+  
+  // 创建文件预览元素
+  let filePreview = fileUploadArea.querySelector('.file-preview');
+  if (!filePreview) {
+    filePreview = document.createElement('div');
+    filePreview.className = 'file-preview';
+    filePreview.style.cssText = `
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px;
+      background: white;
+      border-radius: 8px;
+      border: 1px solid #dee2e6;
+    `;
+    fileUploadArea.appendChild(filePreview);
+  }
+  
+  // 文件信息
+  const fileInfo = document.createElement('div');
+  fileInfo.style.cssText = `
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  `;
+  
+  const fileIcon = file.type.startsWith('video/') ? '🎬' : '🎵';
+  
+  fileInfo.innerHTML = `
+    <div style="font-size: 2rem;">${fileIcon}</div>
+    <div style="font-weight: 600; color: #333;">${file.name}</div>
+    <div style="font-size: 0.85rem; color: #6c757d;">
+      类型: ${file.type || '未知'} | 大小: ${formatFileSize(file.size)}
+    </div>
+    <div id="previewDuration" style="font-size: 0.85rem; color: #6c757d;">
+      时长: 计算中...
+    </div>
+  `;
+  
+  // 删除按钮
+  const deleteBtn = document.createElement('button');
+  deleteBtn.innerHTML = '<i class="fas fa-times"></i>';
+  deleteBtn.style.cssText = `
+    background: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    transition: all 0.3s ease;
+  `;
+  
+  deleteBtn.addEventListener('mouseover', () => {
+    deleteBtn.style.background = '#c82333';
+    deleteBtn.style.transform = 'scale(1.1)';
+  });
+  
+  deleteBtn.addEventListener('mouseout', () => {
+    deleteBtn.style.background = '#dc3545';
+    deleteBtn.style.transform = 'scale(1)';
+  });
+  
+  deleteBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    clearFileSelection();
+  });
+  
+  // 清空并重新添加内容
+  filePreview.innerHTML = '';
+  filePreview.appendChild(fileInfo);
+  filePreview.appendChild(deleteBtn);
+  
+  // 获取媒体时长
+  if (file.type.startsWith('audio/') || file.type.startsWith('video/')) {
+    const url = URL.createObjectURL(file);
+    const media = document.createElement(file.type.startsWith('video/') ? 'video' : 'audio');
+    media.src = url;
+    media.onloadedmetadata = () => {
+      const minutes = Math.floor(media.duration / 60);
+      const seconds = Math.floor(media.duration % 60);
+      const durationStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+      const durationEl = document.getElementById('previewDuration');
+      if (durationEl) {
+        durationEl.textContent = `时长: ${durationStr}`;
+      }
+      URL.revokeObjectURL(url);
+    };
+  }
+  
+  // 显示验证成功消息
+  const validationMessage = document.getElementById('validationMessage');
+  if (validationMessage) {
+    validationMessage.innerHTML = '<div class="validation-success">✓ 文件验证通过，可以开始转换</div>';
+  }
+  
+  // 启用开始按钮
+  if (startBtn) startBtn.disabled = false;
+}
+
+// 清除文件选择
+function clearFileSelection() {
+  const mediaFile = document.getElementById('mediaFile');
+  const fileUploadArea = document.getElementById('fileUploadArea');
+  const uploadPlaceholder = fileUploadArea.querySelector('.upload-placeholder');
+  const filePreview = fileUploadArea.querySelector('.file-preview');
+  const validationMessage = document.getElementById('validationMessage');
+  
+  // 清空文件输入
+  if (mediaFile) mediaFile.value = '';
+  
+  // 显示上传提示
+  if (uploadPlaceholder) uploadPlaceholder.style.display = 'block';
+  
+  // 移除文件预览
+  if (filePreview) filePreview.remove();
+  
+  // 清空验证消息
+  if (validationMessage) validationMessage.innerHTML = '';
+  
+  // 禁用开始按钮
+  if (startBtn) startBtn.disabled = true;
+  
+  console.log('[前端-文件] 文件选择已清除');
 }
 
 function validateFile(file) {
@@ -671,27 +894,17 @@ function validateFile(file) {
     'video/x-matroska', 'video/webm'
   ];
 
-  const validationMessage = document.getElementById('validationMessage');
-
-  let isValid = true;
-  let message = '';
-
   if (file.size > maxSize) {
-    isValid = false;
-    message = '文件大小超过500MB限制';
-  } else if (!allowedTypes.includes(file.type) && !file.name.match(/\.(mp3|wav|m4a|mp4|avi|mov|mkv|flac)$/i)) {
-    isValid = false;
-    message = '不支持的文件格式';
-  } else {
-    message = '文件格式和大小验证通过';
-    if (startBtn) startBtn.disabled = false;
+    alert(`文件太大 (${formatFileSize(file.size)})，最大支持500MB`);
+    return false;
+  }
+  
+  if (!allowedTypes.includes(file.type) && !file.name.match(/\.(mp3|wav|m4a|mp4|avi|mov|mkv|flac)$/i)) {
+    alert(`不支持的文件格式: ${file.type || '未知'}`);
+    return false;
   }
 
-  if (validationMessage) {
-    validationMessage.innerHTML = `<div class="${isValid ? 'validation-success' : 'validation-error'}">${message}</div>`;
-  }
-
-  return isValid;
+  return true;
 }
 
 function formatFileSize(bytes) {
@@ -703,16 +916,21 @@ function formatFileSize(bytes) {
 }
 
 function addCopyButtonToLiveSection() {
-  // 在实时转写区域的标题旁添加复制全文按钮
+  // 在实时转写区域的标题旁添加复制全文和总结全文按钮
   const liveSection = document.querySelector('.live-transcript-section');
   if (liveSection) {
     const header = liveSection.querySelector('h3');
     if (header) {
+      // 创建按钮容器
+      const buttonContainer = document.createElement('div');
+      buttonContainer.style.display = 'inline-block';
+      buttonContainer.style.marginLeft = '10px';
+
       // 创建复制按钮
       const copyFullBtn = document.createElement('button');
       copyFullBtn.className = 'btn btn-secondary btn-small';
       copyFullBtn.innerHTML = '<i class="fas fa-copy"></i> 复制全文';
-      copyFullBtn.style.marginLeft = '10px';
+      copyFullBtn.style.marginRight = '5px';
       copyFullBtn.style.fontSize = '0.8rem';
       copyFullBtn.style.padding = '4px 8px';
 
@@ -733,7 +951,631 @@ function addCopyButtonToLiveSection() {
         }
       });
 
-      header.appendChild(copyFullBtn);
+      // 创建总结按钮
+      const summarizeFullBtn = document.createElement('button');
+      summarizeFullBtn.className = 'btn btn-primary btn-small';
+      summarizeFullBtn.innerHTML = '<i class="fas fa-magic"></i> 总结全文';
+      summarizeFullBtn.style.fontSize = '0.8rem';
+      summarizeFullBtn.style.padding = '4px 8px';
+
+      summarizeFullBtn.addEventListener('click', async () => {
+        // 收集所有实时转写文本
+        const allChunks = liveContainer.querySelectorAll('.chunk');
+        let fullText = '';
+        allChunks.forEach(chunk => {
+          fullText += chunk.textContent + '\n';
+        });
+
+        if (!fullText.trim()) {
+          alert('暂无转写内容可总结');
+          return;
+        }
+
+        // 显示模型选择对话框
+        const modelType = await showModelSelectionDialog();
+        if (!modelType) return; // 用户取消
+
+        // 禁用按钮并显示加载状态
+        const originalText = summarizeFullBtn.innerHTML;
+        summarizeFullBtn.disabled = true;
+        summarizeFullBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 总结中...';
+
+        try {
+          // 调用总结API
+          const response = await fetch('/api/summarize', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+              text: fullText.trim(),
+              model_type: modelType
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          const summary = data.summary;
+
+          // 显示总结结果
+          showSummaryModal(summary);
+
+        } catch (error) {
+          console.error('AI总结失败:', error);
+          alert('AI总结失败: ' + error.message);
+        } finally {
+          // 恢复按钮状态
+          summarizeFullBtn.disabled = false;
+          summarizeFullBtn.innerHTML = originalText;
+        }
+      });
+
+      // 将按钮添加到容器中
+      buttonContainer.appendChild(copyFullBtn);
+      buttonContainer.appendChild(summarizeFullBtn);
+
+      // 将容器添加到标题
+      header.appendChild(buttonContainer);
     }
   }
+}
+
+// 显示模型选择对话框
+function showModelSelectionDialog() {
+  return new Promise((resolve) => {
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    `;
+
+    const modalContent = document.createElement('div');
+    modalContent.style.cssText = `
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      max-width: 400px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    `;
+
+    const title = document.createElement('h3');
+    title.textContent = '选择AI模型';
+    title.style.cssText = `
+      margin: 0 0 15px 0;
+      color: #333;
+    `;
+
+    const description = document.createElement('p');
+    description.textContent = '请选择用于总结的AI模型：';
+    description.style.cssText = `
+      margin: 0 0 15px 0;
+      color: #666;
+      font-size: 0.9rem;
+    `;
+
+    const modelSelect = document.createElement('select');
+    modelSelect.style.cssText = `
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #dee2e6;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      margin-bottom: 15px;
+    `;
+    modelSelect.innerHTML = `
+      <option value="deepseek">DeepSeek Chat (云端，更强大)</option>
+      <option value="ollama">Ollama Gemma2 (本地，更快速)</option>
+    `;
+
+    const actions = document.createElement('div');
+    actions.style.cssText = `
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    `;
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'btn btn-secondary btn-small';
+    cancelBtn.textContent = '取消';
+    cancelBtn.style.fontSize = '0.8rem';
+    cancelBtn.style.padding = '4px 8px';
+
+    const confirmBtn = document.createElement('button');
+    confirmBtn.className = 'btn btn-primary btn-small';
+    confirmBtn.textContent = '确定';
+    confirmBtn.style.fontSize = '0.8rem';
+    confirmBtn.style.padding = '4px 8px';
+
+    cancelBtn.addEventListener('click', () => {
+      document.body.removeChild(modal);
+      resolve(null);
+    });
+
+    confirmBtn.addEventListener('click', () => {
+      const selectedModel = modelSelect.value;
+      document.body.removeChild(modal);
+      resolve(selectedModel);
+    });
+
+    actions.appendChild(cancelBtn);
+    actions.appendChild(confirmBtn);
+
+    modalContent.appendChild(title);
+    modalContent.appendChild(description);
+    modalContent.appendChild(modelSelect);
+    modalContent.appendChild(actions);
+
+    modal.appendChild(modalContent);
+
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        document.body.removeChild(modal);
+        resolve(null);
+      }
+    });
+
+    document.body.appendChild(modal);
+  });
+}
+
+// 显示总结结果的模态框
+function showSummaryModal(summary) {
+  // 创建模态框元素
+  const modal = document.createElement('div');
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  `;
+
+  const modalContent = document.createElement('div');
+  modalContent.style.cssText = `
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    max-width: 80%;
+    max-height: 80%;
+    overflow-y: auto;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    position: relative;
+  `;
+
+  const title = document.createElement('h3');
+  title.textContent = 'AI总结结果';
+  title.style.cssText = `
+    margin: 0 0 15px 0;
+    color: #333;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  `;
+
+  const closeBtn = document.createElement('button');
+  closeBtn.innerHTML = '<i class="fas fa-times"></i>';
+  closeBtn.style.cssText = `
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+    color: #666;
+    padding: 5px;
+  `;
+
+  const summaryText = document.createElement('div');
+  summaryText.className = 'ai-message-content';
+  summaryText.style.cssText = `
+    line-height: 1.6;
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    margin-bottom: 15px;
+    font-size: 0.9rem;
+  `;
+  
+  // 使用marked.js渲染Markdown
+  console.log('[总结Markdown] marked库状态:', typeof marked !== 'undefined' ? '已加载' : '未加载');
+  console.log('[总结Markdown] 总结内容:', summary.substring(0, 100));
+  
+  if (typeof marked !== 'undefined') {
+    marked.setOptions({
+      breaks: true,
+      gfm: true,
+      headerIds: false,
+      mangle: false
+    });
+    
+    try {
+      const renderedHtml = marked.parse(summary);
+      console.log('[总结Markdown] 渲染后的HTML:', renderedHtml.substring(0, 100));
+      summaryText.innerHTML = renderedHtml;
+      
+      // 应用代码高亮
+      if (typeof hljs !== 'undefined') {
+        summaryText.querySelectorAll('pre code').forEach((block) => {
+          hljs.highlightElement(block);
+        });
+        console.log('[总结Markdown] 代码高亮已应用');
+      }
+    } catch (error) {
+      console.error('[总结Markdown] 渲染错误:', error);
+      summaryText.textContent = summary;
+    }
+  } else {
+    console.warn('[总结Markdown] marked库未加载，使用纯文本显示');
+    summaryText.textContent = summary;
+  }
+
+  const actions = document.createElement('div');
+  actions.style.cssText = `
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  `;
+
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'btn btn-secondary btn-small';
+  copyBtn.innerHTML = '<i class="fas fa-copy"></i> 复制总结';
+  copyBtn.style.fontSize = '0.8rem';
+  copyBtn.style.padding = '4px 8px';
+
+  copyBtn.addEventListener('click', () => {
+    navigator.clipboard.writeText(summary).then(() => {
+      alert('总结已复制到剪贴板');
+    }).catch(e => alert('复制失败: ' + e));
+  });
+
+  const downloadBtn = document.createElement('button');
+  downloadBtn.className = 'btn btn-secondary btn-small';
+  downloadBtn.innerHTML = '<i class="fas fa-download"></i> 下载总结';
+  downloadBtn.style.fontSize = '0.8rem';
+  downloadBtn.style.padding = '4px 8px';
+
+  downloadBtn.addEventListener('click', () => {
+    const blob = new Blob([summary], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = '实时转写_AI总结_' + new Date().toISOString().slice(0, 19).replace(/:/g, '-') + '.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+
+  // 组装模态框
+  actions.appendChild(copyBtn);
+  actions.appendChild(downloadBtn);
+
+  modalContent.appendChild(title);
+  modalContent.appendChild(closeBtn);
+  modalContent.appendChild(summaryText);
+  modalContent.appendChild(actions);
+
+  modal.appendChild(modalContent);
+
+  // 添加关闭事件
+  closeBtn.addEventListener('click', () => {
+    document.body.removeChild(modal);
+  });
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      document.body.removeChild(modal);
+    }
+  });
+
+  // 显示模态框
+  document.body.appendChild(modal);
+}
+
+
+// 聊天功能
+let chatHistory = [];
+let currentModel = 'deepseek';
+
+function initChatFeature() {
+  // 在实时转写区域下方添加聊天界面
+  const liveSection = document.querySelector('.live-transcript-section');
+  if (!liveSection) return;
+
+  const chatSection = document.createElement('div');
+  chatSection.className = 'chat-section';
+  chatSection.style.cssText = `
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  `;
+
+  // 聊天标题和模型选择
+  const chatHeader = document.createElement('div');
+  chatHeader.style.cssText = `
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  `;
+
+  const chatTitle = document.createElement('h3');
+  chatTitle.innerHTML = '<i class="fas fa-comments"></i> AI对话';
+  chatTitle.style.cssText = `
+    font-size: 1rem;
+    color: #495057;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  `;
+
+  const modelSelect = document.createElement('select');
+  modelSelect.id = 'chatModelSelect';
+  modelSelect.style.cssText = `
+    padding: 4px 8px;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+  `;
+  modelSelect.innerHTML = `
+    <option value="deepseek">DeepSeek Chat</option>
+    <option value="ollama">Ollama Gemma2</option>
+  `;
+  modelSelect.addEventListener('change', (e) => {
+    currentModel = e.target.value;
+    console.log('切换模型到:', currentModel);
+  });
+
+  chatHeader.appendChild(chatTitle);
+  chatHeader.appendChild(modelSelect);
+
+  // 聊天消息容器
+  const chatMessages = document.createElement('div');
+  chatMessages.id = 'chatMessages';
+  chatMessages.style.cssText = `
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 15px;
+    border: 1px solid #dee2e6;
+    min-height: 200px;
+    max-height: 400px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  `;
+
+  // 输入区域
+  const chatInputContainer = document.createElement('div');
+  chatInputContainer.style.cssText = `
+    display: flex;
+    gap: 8px;
+  `;
+
+  const chatInput = document.createElement('input');
+  chatInput.type = 'text';
+  chatInput.id = 'chatInput';
+  chatInput.placeholder = '输入问题...';
+  chatInput.style.cssText = `
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    font-size: 0.9rem;
+  `;
+
+  const chatSendBtn = document.createElement('button');
+  chatSendBtn.className = 'btn btn-primary btn-small';
+  chatSendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> 发送';
+  chatSendBtn.style.cssText = `
+    padding: 8px 16px;
+    font-size: 0.9rem;
+  `;
+
+  chatInputContainer.appendChild(chatInput);
+  chatInputContainer.appendChild(chatSendBtn);
+
+  // 组装聊天界面
+  chatSection.appendChild(chatHeader);
+  chatSection.appendChild(chatMessages);
+  chatSection.appendChild(chatInputContainer);
+
+  // 插入到实时转写区域的父容器
+  liveSection.parentElement.appendChild(chatSection);
+
+  // 绑定发送事件
+  chatSendBtn.addEventListener('click', () => sendChatMessage());
+  chatInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      sendChatMessage();
+    }
+  });
+}
+
+async function sendChatMessage() {
+  const chatInput = document.getElementById('chatInput');
+  const chatMessages = document.getElementById('chatMessages');
+  const message = chatInput.value.trim();
+
+  if (!message) return;
+
+  // 获取转写文本作为上下文
+  const allChunks = liveContainer.querySelectorAll('.chunk');
+  let context = '';
+  allChunks.forEach(chunk => {
+    context += chunk.textContent + '\n';
+  });
+
+  // 显示用户消息
+  const userMessage = document.createElement('div');
+  userMessage.style.cssText = `
+    align-self: flex-end;
+    background: #007bff;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 12px;
+    max-width: 70%;
+    word-wrap: break-word;
+    font-size: 0.85rem;
+  `;
+  userMessage.textContent = message;
+  chatMessages.appendChild(userMessage);
+
+  // 清空输入框
+  chatInput.value = '';
+
+  // 显示加载状态
+  const loadingMessage = document.createElement('div');
+  loadingMessage.id = 'chatLoading';
+  loadingMessage.style.cssText = `
+    align-self: flex-start;
+    background: #e9ecef;
+    color: #6c757d;
+    padding: 8px 12px;
+    border-radius: 12px;
+    max-width: 70%;
+    font-size: 0.85rem;
+  `;
+  loadingMessage.innerHTML = '<i class="fas fa-spinner fa-spin"></i> AI思考中...';
+  chatMessages.appendChild(loadingMessage);
+
+  // 滚动到底部
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+
+  try {
+    // 构建消息历史
+    const messages = [
+      ...chatHistory,
+      {
+        role: 'user',
+        content: message
+      }
+    ];
+
+    // 调用聊天API
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messages: messages,
+        model_type: currentModel,
+        context: context.trim(),
+        temperature: 1.0
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const aiResponse = data.response;
+
+    // 移除加载状态
+    chatMessages.removeChild(loadingMessage);
+
+    // 显示AI回复（使用Markdown渲染）
+    const aiMessage = document.createElement('div');
+    aiMessage.className = 'ai-message-content';
+    aiMessage.style.cssText = `
+      align-self: flex-start;
+      background: #e9ecef;
+      color: #333;
+      padding: 8px 12px;
+      border-radius: 12px;
+      max-width: 70%;
+      word-wrap: break-word;
+      font-size: 0.85rem;
+      line-height: 1.6;
+    `;
+    
+    // 使用marked.js渲染Markdown
+    console.log('[Markdown] marked库状态:', typeof marked !== 'undefined' ? '已加载' : '未加载');
+    console.log('[Markdown] AI回复内容:', aiResponse.substring(0, 100));
+    
+    if (typeof marked !== 'undefined') {
+      // 配置marked选项
+      marked.setOptions({
+        breaks: true,  // 支持GFM换行
+        gfm: true,     // 启用GitHub风格的Markdown
+        headerIds: false,
+        mangle: false
+      });
+      
+      try {
+        const renderedHtml = marked.parse(aiResponse);
+        console.log('[Markdown] 渲染后的HTML:', renderedHtml.substring(0, 100));
+        aiMessage.innerHTML = renderedHtml;
+        
+        // 应用代码高亮
+        if (typeof hljs !== 'undefined') {
+          aiMessage.querySelectorAll('pre code').forEach((block) => {
+            hljs.highlightElement(block);
+          });
+          console.log('[Markdown] 代码高亮已应用');
+        }
+      } catch (error) {
+        console.error('[Markdown] 渲染错误:', error);
+        aiMessage.textContent = aiResponse;
+      }
+    } else {
+      console.warn('[Markdown] marked库未加载，使用纯文本显示');
+      aiMessage.textContent = aiResponse;
+    }
+    
+    chatMessages.appendChild(aiMessage);
+
+    // 更新聊天历史
+    chatHistory.push(
+      { role: 'user', content: message },
+      { role: 'assistant', content: aiResponse }
+    );
+
+    // 限制历史记录长度
+    if (chatHistory.length > 20) {
+      chatHistory = chatHistory.slice(-20);
+    }
+
+  } catch (error) {
+    console.error('聊天失败:', error);
+    chatMessages.removeChild(loadingMessage);
+
+    const errorMessage = document.createElement('div');
+    errorMessage.style.cssText = `
+      align-self: flex-start;
+      background: #f8d7da;
+      color: #721c24;
+      padding: 8px 12px;
+      border-radius: 12px;
+      max-width: 70%;
+      font-size: 0.85rem;
+    `;
+    errorMessage.textContent = '发送失败: ' + error.message;
+    chatMessages.appendChild(errorMessage);
+  }
+
+  // 滚动到底部
+  chatMessages.scrollTop = chatMessages.scrollHeight;
 }

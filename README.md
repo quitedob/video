@@ -32,26 +32,38 @@
 video-subtitle-workstation/
 ├── app.py                      # Flask 主应用
 ├── api/                        # API 路由层
-│   ├── speech_routes.py        # 语音转文字 API
-│   ├── video_routes.py         # 视频处理 API
-│   └── utils.py                # 工具函数
+│   ├── __init__.py            # API 包初始化
+│   ├── chat_routes.py         # 聊天对话 API
+│   ├── routes.py              # 基础路由
+│   ├── speech_routes.py       # 语音转文字 API
+│   ├── summary_routes.py      # 智能总结 API
+│   ├── utils.py               # 工具函数
+│   └── video_routes.py        # 视频处理 API
 ├── pkg/                        # 核心处理模块
-│   ├── audio/                  # 音频处理模块
+│   ├── audio/                 # 音频处理模块
 │   │   └── audio_processing.py # ASR 推理和音频处理
-│   ├── video/                  # 视频处理模块
-│   │   └── video_processing.py # 视频处理逻辑
-│   ├── translation/            # 翻译模块
-│   └── config/                 # 配置管理
+│   ├── config/                # 配置管理
+│   │   └── config.py          # 配置文件管理
+│   ├── llm/                   # 大语言模型模块
+│   │   ├── __init__.py       # LLM 包初始化
+│   │   ├── base.py           # LLM 基础类
+│   │   ├── deepseek.py       # DeepSeek API 集成
+│   │   └── ollama.py         # Ollama 本地模型集成
+│   ├── translation/           # 翻译模块
+│   │   └── translation.py    # 翻译功能实现
+│   └── video/                 # 视频处理模块
+│       └── video_processing.py # 视频处理逻辑
 ├── templates/                  # HTML 模板
-│   ├── index.html             # 视频字幕处理页面
+│   ├── index.html             # 主页面 - 视频字幕处理
 │   └── speech_to_text.html    # 语音转文字页面
 ├── static/                     # 静态资源
-│   ├── js/                     # JavaScript 文件
-│   └── css/                    # 样式文件 (如需要)
+│   ├── js/                    # JavaScript 文件
+│   │   └── speech_to_text.js  # 语音转文字前端逻辑
+│   └── css/                   # 样式文件 (如需要)
 ├── temp_web/                   # 临时文件目录
 ├── uploads/                    # 上传文件目录
 ├── outputs/                    # 输出文件目录
-└── ssl/                        # SSL 证书目录
+├── ssl/                        # SSL 证书目录
 ```
 
 ## 🛠️ 技术栈
@@ -151,7 +163,14 @@ export FLASK_ENV=development
 
 - `app.py`: Flask 应用入口，包含路由定义和服务器配置
 - `api/speech_routes.py`: 语音转文字 API 实现
+- `api/video_routes.py`: 视频处理 API 实现
+- `api/chat_routes.py`: 聊天对话 API 实现
+- `api/summary_routes.py`: 智能总结 API 实现
 - `pkg/audio/audio_processing.py`: ASR 推理和音频处理核心逻辑
+- `pkg/llm/deepseek.py`: DeepSeek AI 模型集成
+- `pkg/llm/ollama.py`: Ollama 本地模型集成
+- `pkg/translation/translation.py`: 翻译功能实现
+- `pkg/video/video_processing.py`: 视频处理核心逻辑
 
 ### 模板文件
 
@@ -185,6 +204,30 @@ Content-Type: multipart/form-data
 参数:
 - video_file: 视频文件
 - subtitle_options: 字幕选项
+```
+
+### 聊天对话
+
+```
+POST /api/chat
+Content-Type: application/json
+
+参数:
+- message: 用户消息
+- model: AI模型选择 (deepseek/ollama)
+- context: 对话上下文
+```
+
+### 智能总结
+
+```
+POST /api/summary
+Content-Type: application/json
+
+参数:
+- content: 待总结内容
+- summary_type: 总结类型 (brief/detailed)
+- language: 输出语言
 ```
 
 ## 🐛 故障排除

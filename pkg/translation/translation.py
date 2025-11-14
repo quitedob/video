@@ -3,11 +3,11 @@
 
 from __future__ import annotations  # 前向注解
 
-from typing import List, Dict  # 类型注解
+from typing import List, Dict, Callable, Optional  # 类型注解
 import ollama  # Ollama 客户端
 
 
-def translate_segments(subtitles: List[Dict], host: str = "http://127.0.0.1:11434", model: str = "gemma3:12b") -> List[Dict]:  # 批量翻译
+def translate_segments(subtitles: List[Dict], host: str = "http://127.0.0.1:11434", model: str = "gemma3:12b", progress_callback: Optional[Callable[[float, str], None]] = None) -> List[Dict]:  # 批量翻译
     """遍历字幕段，逐条调用 Ollama 进行翻译，返回新列表。"""  # 文档
     client = ollama.Client(host=host)  # 创建客户端
     try:  # 校验模型
@@ -20,7 +20,8 @@ def translate_segments(subtitles: List[Dict], host: str = "http://127.0.0.1:1143
         "将以下文本自然简洁地翻译成简体中文，以制作视频字幕。"
         "仅返回翻译成中文的文本，无需额外注释。"
     )  # 提示词
-    for seg in subtitles:  # 遍历片段
+    total_segments = len(subtitles)  # 总段落数
+    for i, seg in enumerate(subtitles):  # 遍历片段
         user_text = seg.get('text', '')  # 原文
         resp = client.chat(  # 调用对话
             model=model,  # 模型
@@ -33,6 +34,11 @@ def translate_segments(subtitles: List[Dict], host: str = "http://127.0.0.1:1143
         new_seg = dict(seg)  # 拷贝片段
         new_seg['translated_text'] = translated_text or None  # 写入译文
         results.append(new_seg)  # 追加
+
+        # 进度回调
+        if progress_callback:  # 有回调函数
+            progress = (i + 1) / total_segments * 100  # 计算进度
+            progress_callback(progress, f'翻译进度: {i + 1}/{total_segments}')  # 调用回调
     return results  # 返回结果
 
 
