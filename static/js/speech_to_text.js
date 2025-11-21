@@ -141,7 +141,7 @@ function cleanAsrText(text) {
   if (!text) return '';
 
   // 移除各种ASR标记
-  return text
+  let cleanedText = text
     // 移除语言标记
     .replace(/<\|zh\|>/g, '')
     .replace(/<\|en\|>/g, '')
@@ -163,6 +163,36 @@ function cleanAsrText(text) {
     // 清理多余的空格和换行
     .replace(/\s+/g, ' ')
     .trim();
+
+  // 如果启用了过滤模式，移除指定的语气词
+  const filterMode = document.getElementById('filterMode');
+  if (filterMode && filterMode.checked) {
+    // 定义要过滤的语气词列表
+    const fillerWords = ['嗯', '行', '拜拜', '呃', '哎'];
+    
+    // 移除这些语气词（包括单独出现和带标点的情况）
+    fillerWords.forEach(word => {
+      // 移除单独的词
+      const regex1 = new RegExp(`\\b${word}\\b`, 'g');
+      cleanedText = cleanedText.replace(regex1, '');
+      
+      // 移除带标点的词
+      const regex2 = new RegExp(`${word}[，。、！？,\\.!?\\s]+`, 'g');
+      cleanedText = cleanedText.replace(regex2, '');
+      
+      // 移除开头的词
+      const regex3 = new RegExp(`^${word}[，。、！？,\\.!?\\s]*`, 'g');
+      cleanedText = cleanedText.replace(regex3, '');
+    });
+    
+    // 清理多余的空格和标点
+    cleanedText = cleanedText
+      .replace(/\s+/g, ' ')
+      .replace(/[，。、]{2,}/g, '，')
+      .trim();
+  }
+
+  return cleanedText;
 }
 
 // ----- 绑定事件监听器 -----
@@ -1075,7 +1105,7 @@ function showModelSelectionDialog() {
     `;
     modelSelect.innerHTML = `
       <option value="deepseek">DeepSeek Chat (云端，更强大)</option>
-      <option value="ollama">Ollama Gemma2 (本地，更快速)</option>
+      <option value="ollama">Ollama Gemma3:4b (本地，更快速)</option>
     `;
 
     const actions = document.createElement('div');
@@ -1339,7 +1369,7 @@ function initChatFeature() {
   `;
   modelSelect.innerHTML = `
     <option value="deepseek">DeepSeek Chat</option>
-    <option value="ollama">Ollama Gemma2</option>
+    <option value="ollama">Ollama Gemma3:4b</option>
   `;
   modelSelect.addEventListener('change', (e) => {
     currentModel = e.target.value;
