@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__web-search-prime__webSearchPrime",
+      "mcp__web-reader__webReader",
+      "Bash(python:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

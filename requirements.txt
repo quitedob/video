@@ -1,0 +1,16 @@
+Flask>=3.0.0
+Flask-SocketIO>=5.3.0
+Flask-CORS>=4.0.0
+yt-dlp
+torch
+torchaudio
+funasr>=1.1.7
+modelscope>=1.14.0
+torchvision
+ollama>=0.3.0
+addict
+
+moviepy>=1.0.3
+
+requests>=2.32.0
+python-dotenv>=1.0.0
