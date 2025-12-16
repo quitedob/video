@@ -3,6 +3,8 @@
 
 import os  # 环境变量
 import ssl  # SSL支持
+import logging  # 日志模块
+from logging.handlers import RotatingFileHandler  # 日志轮转处理器
 from pathlib import Path  # 路径处理
 from flask import Flask, render_template  # Flask核心
 from flask_socketio import SocketIO, emit  # WebSocket支持
@@ -16,6 +18,40 @@ from api.utils import check_dependencies  # 依赖检查
 app = Flask(__name__,  # Flask应用实例
             template_folder='templates',  # 模板文件夹
             static_folder='static')  # 静态文件文件夹
+
+# ---- 日志配置函数 ----
+def setup_logging():
+    """配置日志系统：同时输出到控制台(默认)和文件(新增)"""
+    log_dir = 'logs'
+    os.makedirs(log_dir, exist_ok=True)
+    log_file = os.path.join(log_dir, 'video_app.log')
+
+    # 定义格式
+    formatter = logging.Formatter(
+        '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+
+    # 文件处理器: 10MB 切割, 最多保留 10 个备份
+    file_handler = RotatingFileHandler(
+        log_file, maxBytes=10*1024*1024, backupCount=10, encoding='utf-8'
+    )
+    file_handler.setFormatter(formatter)
+    file_handler.setLevel(logging.INFO)
+
+    # 获取根日志记录器并配置
+    root_logger = logging.getLogger()
+    # 注意：不要随意重置 level，否则可能覆盖其他模块的设置
+    # root_logger.setLevel(logging.INFO) 
+
+    # 避免重复添加 (判断是否已存在 RotatingFileHandler)
+    has_file_handler = any(isinstance(h, RotatingFileHandler) for h in root_logger.handlers)
+    if not has_file_handler:
+        root_logger.addHandler(file_handler)
+        print(f"📄 日志系统已就绪，输出文件: {log_file}")
+
+    # 也可以单独为 werkzeug (Flask 请求日志) 添加文件输出
+    logging.getLogger('werkzeug').addHandler(file_handler)
 
 # 配置Flask应用
 app.config['SECRET_KEY'] = 'video-subtitle-secret-key'  # 会话密钥
@@ -102,6 +138,8 @@ def load_env_file():
 
 def main():  # 主函数
     """启动Web服务器"""  # 文档
+    # 初始化日志
+    setup_logging()
 
     # 加载.env文件
     load_env_file()
