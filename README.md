@@ -150,12 +150,19 @@ export FLASK_ENV=development
 
 ### 模型配置
 
-项目使用以下 AI 模型：
+项目默认使用以下 AI 模型：
 
-- **SenseVoice**: 通用的语音理解模型
-- **FunASR**: 语音识别模型
+- **FunASR MLT Nano**: `FunAudioLLM/Fun-ASR-MLT-Nano-2512` (多语言/多任务语音识别)
 
-模型会自动从 ModelScope 下载并缓存。
+模型会自动从 ModelScope 下载并缓存到 `model_cache` 目录。
+
+### 🌟 特性
+
+- **智能资源管理**: 
+  - 自动检测系统显存 (VRAM) 和内存 (RAM)。
+  - 若显存不足 (低于 1.5GB)，自动从 GPU 降级到 CPU 推理，防止崩溃。
+- **实时日志**: 同时输出到控制台和 `logs/video_app.log`，支持自动轮转。
+- **SSL 安全**: 默认启用 HTTPS，保护数据传输安全。
 
 ## 📁 文件说明
 
@@ -241,12 +248,14 @@ Content-Type: application/json
 
 ### 日志查看
 
-```bash
-# 查看应用日志
-tail -f logs/app.log
+系统日志（含 Flask Web 和 ASR 推理日志）统一输出到：
 
-# 查看 ASR 处理日志
-tail -f logs/asr.log
+```bash
+# Windows (PowerShell)
+Get-Content logs/video_app.log -Wait
+
+# Linux/Mac
+tail -f logs/video_app.log
 ```
 
 ## 🤝 贡献指南
