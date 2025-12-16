@@ -9,9 +9,9 @@
 - **语音转文字**: 支持音频和视频文件的语音识别和转文字功能
   - 支持多种音频格式（MP3, WAV, M4A, FLAC等）
   - 支持多种视频格式（MP4, AVI, MOV, MKV等）
-  - 基于 FunASR 的高精度语音识别
-  - 实时转写和批量处理两种模式
-  - 流式处理支持大文件分段识别
+  - 基于 FunASR + Fun-ASR-Nano 的高精度语音识别
+  - 支持31种语言，包括中文7大方言和26个地方口音
+  - 自动音频分段处理，避免显存溢出
 
 ### 🚧 开发中功能
 
@@ -19,98 +19,60 @@
 - **视频字幕**: 为视频文件自动生成和嵌入字幕
 - **会议总结**: 接入 AI API 进行会议内容智能总结
 
-### 🔮 计划功能
-
-- 多语言字幕翻译
-- 字幕样式自定义
-- 批量处理队列
-- 云端存储集成
-
-## 🏗️ 项目架构
-
-```
-video-subtitle-workstation/
-├── app.py                      # Flask 主应用
-├── api/                        # API 路由层
-│   ├── __init__.py            # API 包初始化
-│   ├── chat_routes.py         # 聊天对话 API
-│   ├── routes.py              # 基础路由
-│   ├── speech_routes.py       # 语音转文字 API
-│   ├── summary_routes.py      # 智能总结 API
-│   ├── utils.py               # 工具函数
-│   └── video_routes.py        # 视频处理 API
-├── pkg/                        # 核心处理模块
-│   ├── audio/                 # 音频处理模块
-│   │   └── audio_processing.py # ASR 推理和音频处理
-│   ├── config/                # 配置管理
-│   │   └── config.py          # 配置文件管理
-│   ├── llm/                   # 大语言模型模块
-│   │   ├── __init__.py       # LLM 包初始化
-│   │   ├── base.py           # LLM 基础类
-│   │   ├── deepseek.py       # DeepSeek API 集成
-│   │   └── ollama.py         # Ollama 本地模型集成
-│   ├── translation/           # 翻译模块
-│   │   └── translation.py    # 翻译功能实现
-│   └── video/                 # 视频处理模块
-│       └── video_processing.py # 视频处理逻辑
-├── templates/                  # HTML 模板
-│   ├── index.html             # 主页面 - 视频字幕处理
-│   └── speech_to_text.html    # 语音转文字页面
-├── static/                     # 静态资源
-│   ├── js/                    # JavaScript 文件
-│   │   └── speech_to_text.js  # 语音转文字前端逻辑
-│   └── css/                   # 样式文件 (如需要)
-├── temp_web/                   # 临时文件目录
-├── uploads/                    # 上传文件目录
-├── outputs/                    # 输出文件目录
-├── ssl/                        # SSL 证书目录
-```
-
-## 🛠️ 技术栈
-
-### 后端
-
-- **Flask**: Web 框架
-- **Flask-SocketIO**: WebSocket 实时通信
-- **FunASR**: 语音识别引擎
-- **ModelScope**: 模型管理平台
-- **MoviePy**: 视频处理
-- **FFmpeg**: 多媒体处理
-
-### 前端
-
-- **HTML5/CSS3**: 用户界面
-- **JavaScript**: 交互逻辑
-- **Socket.IO**: 实时通信
-
-### AI/模型
-
-- **FunASR**: 语音识别
-- **SenseVoice**: 通用的语音理解模型
-- **Ollama**: 本地 AI 模型运行时
-
 ## 🚀 快速开始
 
 ### 环境要求
 
 - Python 3.8+
 - FFmpeg
-- CUDA (可选，用于GPU加速)
+- CUDA (可选，用于GPU加速，建议8GB+显存)
 
-### 安装依赖
+### 安装步骤
+
+#### 1. 安装 Python 依赖
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 准备 SSL 证书
+#### 2. 准备 SSL 证书
 
 ```bash
 # 生成自签名SSL证书
 openssl req -x509 -newkey rsa:4096 -keyout ssl/server.key -out ssl/server.crt -days 365 -nodes
 ```
 
-### 启动服务
+#### 3. ⚠️ 重要：配置 Fun-ASR-Nano 模型
+
+Fun-ASR-Nano 模型需要额外的 `model.py` 文件才能正常运行。
+
+**步骤：**
+
+1. 首次启动时，模型会自动下载到 `/model_cache/FunAudioLLM/Fun-ASR-Nano-2512/` 目录
+
+2. 将项目根目录的 `model.py` 文件复制到模型缓存目录：
+
+   **Windows (PowerShell):**
+   ```powershell
+   Copy-Item "model.py" "/model_cache/FunAudioLLM/Fun-ASR-Nano-2512/model.py" -Force
+   ```
+
+   **Windows (CMD):**
+   ```cmd
+   copy model.py \model_cache\FunAudioLLM\Fun-ASR-Nano-2512\model.py
+   ```
+
+   **Linux/Mac:**
+   ```bash
+   cp model.py /model_cache/FunAudioLLM/Fun-ASR-Nano-2512/model.py
+   ```
+
+3. 如果 `model.py` 不存在，请从 ModelScope 下载：
+   - 访问 https://github.com/FunAudioLLM/Fun-ASR/blob/main/model.py
+   - 下载 `model.py` 文件
+   - 放置到上述模型缓存目录
+
+#### 4. 启动服务
 
 ```bash
 python app.py
@@ -124,18 +86,37 @@ python app.py
 
 1. 访问 `https://127.0.0.1:443/speech`
 2. 点击或拖拽上传音频/视频文件
-3. 选择处理选项（设备、语言、分段大小等）
+3. 选择处理选项（设备、语言等）
 4. 点击"开始转换"进行语音识别
-5. 实时查看转写结果并下载
-
-### 视频字幕处理（开发中）
-
-1. 访问 `https://127.0.0.1:443/`
-2. 上传视频文件
-3. 选择字幕生成选项
-4. 自动生成并嵌入字幕
+5. 查看转写结果
 
 ## 🔧 配置说明
+
+### 模型配置
+
+项目使用 **Fun-ASR-Nano-2512** 模型：
+
+| 特性 | 说明 |
+|------|------|
+| 模型ID | `FunAudioLLM/Fun-ASR-Nano-2512` |
+| 参数量 | ~800M |
+| 支持语言 | 31种语言 |
+| 中文方言 | 7大方言 + 26个地方口音 |
+| 显存需求 | 约 3-4GB |
+
+### 音频切割配置
+
+系统会自动将长音频切割成小段处理，避免显存溢出：
+
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `segment_duration` | 30秒 | 每段音频的时长 |
+
+**显存建议：**
+- 16GB 显存：可设置 60-120 秒
+- 8GB 显存：建议 30-60 秒  
+- 4GB 显存：建议 15-30 秒
+- CPU 模式：建议 30 秒
 
 ### 环境变量
 
@@ -144,85 +125,81 @@ python app.py
 export CUDA_DEVICE_ORDER=PCI_BUS_ID
 export CUDA_VISIBLE_DEVICES=0
 
-# Flask 配置
-export FLASK_ENV=development
+# 模型缓存目录（可选）
+export MODELSCOPE_CACHE=/model_cache
 ```
 
-### 模型配置
+## 🏗️ 项目结构
 
-项目默认使用以下 AI 模型：
+```
+video/
+├── app.py                      # Flask 主应用入口
+├── model.py                    # ⚠️ Fun-ASR-Nano 模型文件（需复制到模型缓存目录）
+├── requirements.txt            # Python 依赖
+├── api/                        # API 路由层
+│   ├── speech_routes.py       # 语音转文字 API
+│   ├── video_routes.py        # 视频处理 API
+│   └── ...
+├── pkg/                        # 核心处理模块
+│   ├── audio/
+│   │   └── audio_processing.py # ASR 推理核心
+│   ├── config/
+│   │   └── config.py          # 配置管理
+│   └── llm/                   # LLM 集成
+├── templates/                  # HTML 模板
+├── static/                     # 静态资源
+├── model_cache/               # 模型缓存目录（自动创建）
+├── temp_web/                   # 临时文件目录
+├── uploads/                    # 上传文件目录
+├── outputs/                    # 输出文件目录
+├── logs/                       # 日志目录
+└── ssl/                        # SSL 证书目录
+```
 
-- **Fun-ASR-Nano**: `FunAudioLLM/Fun-ASR-Nano-2512` (端到端语音识别大模型)
-  - 基于数千万小时真实语音数据训练
-  - 支持31种语言，包括中文7大方言和26个地方口音
-  - 支持低延迟实时转录
-  - 需要约 2GB 显存
+## 🐛 故障排除
 
-模型会自动从 ModelScope 下载并缓存到 `model_cache` 目录。
+### 常见问题
 
-### 音频切割配置
+#### 1. `No module named 'model'` 或 `Loading remote code failed`
 
-由于 Fun-ASR-Nano 模型对长音频的显存需求较高，系统会自动将音频切割成小段进行处理：
+**原因**: `model.py` 文件未放置到正确位置
 
-| 配置项 | 默认值 | 说明 |
-|--------|--------|------|
-| `segment_duration_seconds` | 30 | 每段音频的时长（秒） |
+**解决方案**:
+```powershell
+# Windows
+Copy-Item "model.py" "/model_cache/FunAudioLLM/Fun-ASR-Nano-2512/model.py" -Force
+```
 
-**配置方式：**
+#### 2. `ModuleNotFoundError: No module named 'datasets'`
 
-1. **通过 API 参数**：在请求中传入 `segment_duration` 参数（单位：秒）
-   ```bash
-   curl -X POST https://127.0.0.1:443/api/speech-to-text \
-     -F "media_file=@audio.mp3" \
-     -F "segment_duration=30"
-   ```
+**解决方案**:
+```bash
+pip install datasets transformers
+```
 
-2. **通过配置文件**：在 `config.json` 中设置
-   ```json
-   {
-     "asr": {
-       "segment_duration_seconds": 30
-     }
-   }
-   ```
+#### 3. `CUDA out of memory`
 
-**建议值：**
-- 16GB 显存：可设置 60-120 秒
-- 8GB 显存：建议 30-60 秒
-- 4GB 显存或更低：建议 15-30 秒
-- CPU 模式：建议 30 秒（内存充足时可适当增加）
+**解决方案**: 减小音频分段时长
+```bash
+# 在 API 请求中设置较小的分段时长
+curl -X POST https://127.0.0.1:443/api/speech-to-text \
+  -F "media_file=@audio.mp3" \
+  -F "segment_duration=15"
+```
 
-### 🌟 特性
+#### 4. `attention_mask` 警告
 
-- **智能资源管理**: 
-  - 自动检测系统显存 (VRAM) 和内存 (RAM)。
-  - 若显存不足 (低于 1.5GB)，自动从 GPU 降级到 CPU 推理，防止崩溃。
-- **实时日志**: 同时输出到控制台和 `logs/video_app.log`，支持自动轮转。
-- **SSL 安全**: 默认启用 HTTPS，保护数据传输安全。
+这是 transformers 库的正常警告，不影响识别结果，可以忽略。
 
-## 📁 文件说明
+### 日志查看
 
-### 核心文件
+```bash
+# Windows (PowerShell)
+Get-Content logs/video_app.log -Wait
 
-- `app.py`: Flask 应用入口，包含路由定义和服务器配置
-- `api/speech_routes.py`: 语音转文字 API 实现
-- `api/video_routes.py`: 视频处理 API 实现
-- `api/chat_routes.py`: 聊天对话 API 实现
-- `api/summary_routes.py`: 智能总结 API 实现
-- `pkg/audio/audio_processing.py`: ASR 推理和音频处理核心逻辑
-- `pkg/llm/deepseek.py`: DeepSeek AI 模型集成
-- `pkg/llm/ollama.py`: Ollama 本地模型集成
-- `pkg/translation/translation.py`: 翻译功能实现
-- `pkg/video/video_processing.py`: 视频处理核心逻辑
-
-### 模板文件
-
-- `templates/index.html`: 视频字幕处理页面
-- `templates/speech_to_text.html`: 语音转文字页面
-
-### 静态资源
-
-- `static/js/speech_to_text.js`: 前端交互逻辑
+# Linux/Mac
+tail -f logs/video_app.log
+```
 
 ## 🔄 API 接口
 
@@ -233,85 +210,21 @@ POST /api/speech-to-text
 Content-Type: multipart/form-data
 
 参数:
-- media_file: 音频/视频文件
-- device: 处理设备 (auto/cuda:0/cpu)
-- task_id: 任务ID
+- media_file: 音频/视频文件（必需）
+- device: 处理设备 (auto/cuda:0/cpu)，默认 auto
+- segment_duration: 分段时长（秒），默认 30
+- task_id: 任务ID（可选）
 ```
-
-### 视频处理
-
-```
-POST /api/video/process
-Content-Type: multipart/form-data
-
-参数:
-- video_file: 视频文件
-- subtitle_options: 字幕选项
-```
-
-### 聊天对话
-
-```
-POST /api/chat
-Content-Type: application/json
-
-参数:
-- message: 用户消息
-- model: AI模型选择 (deepseek/ollama)
-- context: 对话上下文
-```
-
-### 智能总结
-
-```
-POST /api/summary
-Content-Type: application/json
-
-参数:
-- content: 待总结内容
-- summary_type: 总结类型 (brief/detailed)
-- language: 输出语言
-```
-
-## 🐛 故障排除
-
-### 常见问题
-
-1. **SSL 证书错误**: 确保 `ssl/server.crt` 和 `ssl/server.key` 文件存在
-2. **依赖缺失**: 运行 `pip install -r requirements.txt`
-3. **CUDA 错误**: 检查 CUDA 安装和环境变量设置
-4. **端口占用**: 确保 443 端口未被其他服务占用
-
-### 日志查看
-
-系统日志（含 Flask Web 和 ASR 推理日志）统一输出到：
-
-```bash
-# Windows (PowerShell)
-Get-Content logs/video_app.log -Wait
-
-# Linux/Mac
-tail -f logs/video_app.log
-```
-
-## 🤝 贡献指南
-
-1. Fork 本项目
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push https://github.com/quitedob/video feature/AmazingFeature`)
-5. 创建 Pull Request
 
 ## 📄 许可证
 
-本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
+本项目采用 MIT 许可证
 
 ## 📞 联系方式
 
 项目维护者: quitedob    
-
 项目链接: https://github.com/quitedob/video
 
 ---
 
-**注意**: 本项目仍在积极开发中，功能可能会发生变化。如有问题或建议，请提交 Issue。
+**注意**: 本项目仍在积极开发中。如有问题或建议，请提交 Issue。
