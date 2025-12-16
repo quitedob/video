@@ -10,14 +10,21 @@ from pathlib import Path
 from typing import List, Dict, Optional, Any, Callable
 import os
 import json
+import psutil
 import traceback
 import wave
 import subprocess
 import logging
 import threading
 import queue
+# ...
 import time
 import numpy as np
+from pkg.utils.system_monitor import SystemMonitor
+
+# ...
+
+
 
 # 设置日志格式
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
@@ -51,8 +58,8 @@ def get_audio_duration(audio_path: str) -> float:
 @dataclass
 class AsrConfig:
     """ASR 参数配置"""
-    model_dir: str = "iic/SenseVoiceSmall"    # modelscope 模型 id 或本地路径
-    device: str = "cuda:0"                    # 强制设备 'cuda:0' 或 'cpu' 或 'auto'
+    model_dir: str = "FunAudioLLM/Fun-ASR-MLT-Nano-2512"    # modelscope 模型 id 或本地路径
+    device: str = "cuda:0"                               # 强制设备 'cuda:0' 或 'cpu' 或 'auto'
     trust_remote_code: bool = True
     remote_code: Optional[str] = "./model.py"
     vad_kwargs: Optional[dict] = None
@@ -148,40 +155,70 @@ def create_asr_model(cfg: AsrConfig):
         logger.warning("设置 MODELSCOPE_CACHE 时出错，继续使用系统默认缓存路径。")
 
     # --- 2) 设备检测与转换（处理 'auto' 参数并验证设备可用性） ---
+    # --- 2) 智能设备选择与资源检查策略 (自动降级) ---
     try:
         import torch
-        # 处理 'auto' 参数
-        if cfg.device == "auto":
-            if torch.cuda.is_available() and torch.cuda.device_count() > 0:
-                cfg.device = "cuda:0"
-                logger.info("🔥 自动选择 CUDA 设备: cuda:0")
-            else:
-                cfg.device = "cpu"
-                logger.info("💻 CUDA 不可用，自动选择 CPU 设备")
+        target_device = cfg.device
+        
+        # 显存阈值 (GB) - Nano 模型约需 1~1.5G 显存比较安全
+        MIN_VRAM_GB = 1.5
+        # 内存阈值 (GB)
+        MIN_RAM_GB = 2.0
 
-        # 验证设备类型和可用性
-        if cfg.device.startswith("cuda"):
-            if not torch.cuda.is_available():
-                logger.warning("配置要求使用 CUDA，但 torch.cuda.is_available() 为 False，回退到 CPU。")
+        # 获取系统内存信息
+        vm = psutil.virtual_memory()
+        available_ram_gb = vm.available / (1024 ** 3)
+
+        # 检查是否请求使用 GPU (auto 或 cuda:*)
+        use_gpu = False
+        if target_device == "auto":
+             use_gpu = torch.cuda.is_available()
+        elif target_device.startswith("cuda"):
+             use_gpu = torch.cuda.is_available()
+             if not use_gpu:
+                 logger.warning(f"配置要求使用 {target_device}，但 CUDA 不可用，自动降级到 CPU")
+
+        # 如果计划使用 GPU，检查显存
+        if use_gpu:
+            try:
+                # 默认检查 cuda:0，如果配置指定了其他 ID 则解析
+                device_id = 0
+                if ":" in target_device and target_device != "auto":
+                    try:
+                        device_id = int(target_device.split(":")[-1])
+                    except:
+                        pass
+                
+                # 获取显存信息
+                free_mem, total_mem = torch.cuda.mem_get_info(device_id)
+                free_vram_gb = free_mem / (1024 ** 3)
+                
+                logger.info(f"资源预检 (GPU): 设备 cuda:{device_id} | 空闲显存: {free_vram_gb:.2f}GB / 总显存: {total_mem/(1024**3):.2f}GB")
+
+                if free_vram_gb < MIN_VRAM_GB:
+                    logger.warning(f"⚠️ 显存不足 (剩余 {free_vram_gb:.2f}GB < 阈值 {MIN_VRAM_GB}GB)，为了稳定性自动降级到 CPU 推理")
+                    cfg.device = "cpu"
+                else:
+                    cfg.device = f"cuda:{device_id}"
+                    logger.info(f"✅ GPU 资源充足，将使用 {cfg.device}")
+            except Exception as e:
+                logger.warning(f"显存检查遇到错误: {e}，保守起见降级到 CPU")
                 cfg.device = "cpu"
-            else:
-                # 验证指定的 CUDA 设备是否可用
-                device_id = cfg.device.split(":")[-1] if ":" in cfg.device else "0"
-                try:
-                    device_id = int(device_id)
-                    if device_id >= torch.cuda.device_count():
-                        logger.warning(f"指定的 CUDA 设备 {cfg.device} 不存在，使用 cuda:0")
-                        cfg.device = "cuda:0"
-                except ValueError:
-                    logger.warning(f"CUDA 设备格式错误: {cfg.device}，使用 cuda:0")
-                    cfg.device = "cuda:0"
-        elif cfg.device != "cpu":
-            logger.warning(f"未知设备类型: {cfg.device}，回退到 CPU")
+        else:
             cfg.device = "cpu"
 
-        logger.info(f"📱 最终使用的设备: {cfg.device}")
+        # 最终 CPU 资源检查
+        if cfg.device == "cpu":
+            logger.info(f"资源预检 (CPU): 可用系统内存: {available_ram_gb:.2f}GB")
+            if available_ram_gb < MIN_RAM_GB:
+                logger.warning(f"⚠️ 系统内存较低 (可用 {available_ram_gb:.2f}GB < 阈值 {MIN_RAM_GB}GB)，推理可能会卡顿或失败")
+            else:
+                 logger.info("✅ CPU 模式内存充足")
+
+        logger.info(f"📱 最终决定使用的计算设备: {cfg.device}")
+
     except Exception as e:
-        logger.warning(f"设备检测失败: {e}，使用 CPU")
+        logger.warning(f"设备智能检测失败: {e}，强制回退到 CPU")
         cfg.device = "cpu"
 
     # --- 3) 如果 model_dir 看起来不是本地路径，则使用 modelscope.snapshot_download 下载到本地 cache_dir ---
@@ -230,7 +267,7 @@ def create_asr_model(cfg: AsrConfig):
             trust_remote_code=cfg.trust_remote_code,
             remote_code=remote_code_path or cfg.remote_code,
             vad_model="fsmn-vad",
-            vad_kwargs=cfg.vad_kwargs or {"max_single_segment_time": 6000000},
+            vad_kwargs=cfg.vad_kwargs or {"max_single_segment_time": 30000},
             device=cfg.device,
             disable_update=True,
         )
@@ -321,25 +358,33 @@ def transcribe_audio_segments(model: Any, audio_files: List[str], cfg: AsrConfig
     批量识别多个音频片段（audio_files 为片段路径列表）
     返回结构: { 'total_segments': n, 'texts': [ ... ], 'joined_text': '...' }
     """
-    texts = []
-    total_speech_seconds = 0.0
-    for fp in audio_files:
-        text = transcribe_audio_segment(model, fp, cfg)
-        texts.append({'file': fp, 'text': text})
-        # 统计处理时长（尝试获取片段时长）
-        try:
-            dur = get_audio_duration(fp)
-            total_speech_seconds += dur
-        except Exception:
-            pass
+    # 启动资源监控
+    monitor = SystemMonitor(interval=2.0)
+    monitor.start()
 
-    joined = " ".join([t['text'] for t in texts if t['text']])
-    return {
-        'total_segments': len(audio_files),
-        'texts': texts,
-        'joined_text': joined,
-        'time_speech': total_speech_seconds
-    }
+    try:
+        texts = []
+        total_speech_seconds = 0.0
+        for fp in audio_files:
+            text = transcribe_audio_segment(model, fp, cfg)
+            texts.append({'file': fp, 'text': text})
+            # 统计处理时长（尝试获取片段时长）
+            try:
+                dur = get_audio_duration(fp)
+                total_speech_seconds += dur
+            except Exception:
+                pass
+
+        joined = " ".join([t['text'] for t in texts if t['text']])
+        return {
+            'total_segments': len(audio_files),
+            'texts': texts,
+            'joined_text': joined,
+            'time_speech': total_speech_seconds
+        }
+    finally:
+         # 确保监控停止
+        monitor.stop()
 
 # ---- 额外工具：命令行/脚本启动时强制 GPU 的建议 ----
 # 提示：如果你想在脚本外部强制哪个 GPU 可见，请在启动程序前设置：
@@ -676,6 +721,10 @@ class StreamingAsrProcessor:
                 socketio=self.socketio,
                 result_callback=lambda text: self._save_result_chunk(task_id, text)
             )
+            
+            # 启动资源监控
+            monitor = SystemMonitor(interval=2.0, task_id=task_id, socketio=self.socketio)
+            monitor.start()
 
             # 存储任务信息
             self.active_tasks[task_id] = {
@@ -683,6 +732,7 @@ class StreamingAsrProcessor:
                 'media_path': media_path,
                 'producer': producer,
                 'consumer': consumer,
+                'monitor': monitor,  # 存储 monitor 实例
                 'audio_queue': audio_queue,
                 'result_text': [],
                 'start_time': time.time()
@@ -718,6 +768,10 @@ class StreamingAsrProcessor:
         """停止指定任务"""
         if task_id in self.active_tasks:
             task_info = self.active_tasks[task_id]
+            
+            # 停止资源监控
+            if 'monitor' in task_info and task_info['monitor']:
+                task_info['monitor'].stop()
 
             # 停止线程
             if task_info['producer'].is_alive():

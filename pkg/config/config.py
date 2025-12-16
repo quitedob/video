@@ -12,7 +12,7 @@ import os  # 环境变量
 
 @dataclass  # ASR 配置
 class ASRConfig:  # ASR 配置类
-    model_dir: str = "iic/SenseVoiceSmall"  # 模型目录
+    model_dir: str = "FunAudioLLM/Fun-ASR-MLT-Nano-2512"  # 模型目录
     device: str = "cuda:0"  # 设备
     trust_remote_code: bool = True  # 信任远程代码
     remote_code: Optional[str] = "./model.py"  # 远程代码路径
@@ -28,7 +28,10 @@ class ASRConfig:  # ASR 配置类
 
 @dataclass  # 翻译配置
 class TranslationConfig:  # 翻译配置类
-    host: str = "http://127.0.0.1:11434"  # Ollama 主机
+    provider: str = "ollama"  # 翻译服务提供商: ollama, deepseek, openai
+    host: str = "http://127.0.0.1:11434"  # Ollama 主机 / API Base URL
+    base_url: Optional[str] = None  # 兼容 OpenAI 格式 API 的 Base URL (若不设置则使用 host)
+    api_key: Optional[str] = None  # API Key
     model: str = "gemma3:12b"  # 模型名称
     system_prompt: str = (  # 系统提示词
         "你是个专业的字幕翻译中文专家，专门把所有语言翻译成中文。"
@@ -38,7 +41,10 @@ class TranslationConfig:  # 翻译配置类
 
     @classmethod  # 从字典创建
     def from_dict(cls, data: Dict[str, Any]) -> 'TranslationConfig':  # 类方法
-        return cls(**data)  # 展开字典
+        # 过滤掉不存在的字段，防止报错
+        valid_keys = cls.__annotations__.keys()
+        filtered_data = {k: v for k, v in data.items() if k in valid_keys}
+        return cls(**filtered_data)
 
     def to_dict(self) -> Dict[str, Any]:  # 转字典
         return asdict(self)  # 转换

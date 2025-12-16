@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -298,12 +299,12 @@
             transition: all 0.3s ease;
         }
 
-        .checkbox-label input:checked ~ .checkmark {
+        .checkbox-label input:checked~.checkmark {
             background: #007bff;
             border-color: #007bff;
         }
 
-        .checkbox-label input:checked ~ .checkmark::after {
+        .checkbox-label input:checked~.checkmark::after {
             content: '✓';
             position: absolute;
             top: 50%;
@@ -697,8 +698,13 @@
 
         /* 动画 */
         @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
         }
 
         @keyframes slideIn {
@@ -706,6 +712,7 @@
                 opacity: 0;
                 transform: translateY(-20px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -826,6 +833,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <header class="header">
@@ -854,28 +862,7 @@
         <main class="main-content">
             <div class="upload-section">
                 <div class="upload-container">
-                    <div class="upload-tabs">
-                        <button class="tab-btn active" data-tab="url">
-                            <i class="fas fa-link"></i> 网络链接
-                        </button>
-                        <button class="tab-btn" data-tab="file">
-                            <i class="fas fa-file-upload"></i> 本地文件
-                        </button>
-                    </div>
-
-                    <div class="tab-content active" id="urlTab">
-                        <div class="input-group">
-                            <input type="url" id="videoUrl" placeholder="请输入视频链接 (YouTube, Bilibili等)">
-                            <button id="pasteBtn" class="btn btn-secondary">
-                                <i class="fas fa-paste"></i> 粘贴
-                            </button>
-                        </div>
-                        <div class="url-examples">
-                            <small class="text-muted">支持：YouTube, Bilibili, Vimeo, Twitter等平台</small>
-                        </div>
-                    </div>
-
-                    <div class="tab-content" id="fileTab">
+                    <div id="fileTab">
                         <div class="file-upload-area" id="fileUploadArea">
                             <div class="upload-placeholder">
                                 <i class="fas fa-cloud-upload-alt"></i>
@@ -1102,13 +1089,29 @@
                     </div>
                     <div class="settings-section">
                         <h3>翻译配置</h3>
-                        <div class="form-group">
-                            <label>Ollama主机:</label>
-                            <input type="text" id="ollamaHost" placeholder="Ollama主机地址">
-                        </div>
-                        <div class="form-group">
-                            <label>翻译模型:</label>
-                            <input type="text" id="ollamaModel" placeholder="翻译模型名称">
+                        <div class="settings-section">
+                            <h3>翻译配置</h3>
+                            <div class="form-group">
+                                <label>服务提供商:</label>
+                                <select id="transProvider">
+                                    <option value="ollama">Ollama</option>
+                                    <option value="deepseek">DeepSeek</option>
+                                    <option value="openai">OpenAI</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>API 地址 (Host/BaseURL):</label>
+                                <input type="text" id="transHost" placeholder="http://127.0.0.1:11434">
+                                <small class="text-muted" id="hostHint">例如: http://127.0.0.1:11434</small>
+                            </div>
+                            <div class="form-group" id="apiKeyGroup" style="display: none;">
+                                <label>API Key:</label>
+                                <input type="password" id="transApiKey" placeholder="请输入 API Key">
+                            </div>
+                            <div class="form-group">
+                                <label>模型名称:</label>
+                                <input type="text" id="transModel" placeholder="gemma3:12b">
+                            </div>
                         </div>
                     </div>
                     <div class="settings-section">
@@ -1158,11 +1161,11 @@
                 this.closeSettingsBtn = document.getElementById('closeSettingsBtn');
 
                 // 上传相关
-                this.videoUrl = document.getElementById('videoUrl');
-                this.pasteBtn = document.getElementById('pasteBtn');
+                // this.videoUrl removed
+                // this.pasteBtn removed
                 this.fileUploadArea = document.getElementById('fileUploadArea');
                 this.videoFile = document.getElementById('videoFile');
-                this.tabBtns = document.querySelectorAll('.tab-btn');
+                this.tabBtns = [];  // removed
 
                 // 处理选项
                 this.doAsr = document.getElementById('doAsr');
@@ -1196,8 +1199,12 @@
                 this.resetSettingsBtn = document.getElementById('resetSettingsBtn');
                 this.asrModelDir = document.getElementById('asrModelDir');
                 this.asrDevice = document.getElementById('asrDevice');
-                this.ollamaHost = document.getElementById('ollamaHost');
-                this.ollamaModel = document.getElementById('ollamaModel');
+                this.transProvider = document.getElementById('transProvider');
+                this.transHost = document.getElementById('transHost');
+                this.transApiKey = document.getElementById('transApiKey');
+                this.transModel = document.getElementById('transModel');
+                this.apiKeyGroup = document.getElementById('apiKeyGroup');
+                this.hostHint = document.getElementById('hostHint');
                 this.tempDir = document.getElementById('tempDir');
                 this.videoCrf = document.getElementById('videoCrf');
                 this.crfValue = document.getElementById('crfValue');
@@ -1209,12 +1216,10 @@
                 this.setupWebSocket();
 
                 // 标签页切换
-                this.tabBtns.forEach(btn => {
-                    btn.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
-                });
+                // 标签页切换 removed
 
                 // 粘贴按钮
-                this.pasteBtn.addEventListener('click', () => this.pasteFromClipboard());
+                // 粘贴按钮 removed
 
                 // 文件上传
                 this.fileUploadArea.addEventListener('click', () => this.videoFile.click());
@@ -1240,6 +1245,9 @@
                 this.saveSettingsBtn.addEventListener('click', () => this.saveSettings());
                 this.resetSettingsBtn.addEventListener('click', () => this.resetSettings());
 
+                // 翻译提供商切换监听（控制API Key显示和Host Placeholder）
+                this.transProvider.addEventListener('change', () => this.updateProviderUI());
+
                 // CRF滑块
                 this.videoCrf.addEventListener('input', (e) => {
                     this.crfValue.textContent = e.target.value;
@@ -1253,14 +1261,11 @@
                 });
 
                 // 回车键开始处理
-                this.videoUrl.addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') {
-                        this.startProcessing();
-                    }
-                });
+                // 回车键开始处理 removed
 
                 // 实时检查输入
-                this.videoUrl.addEventListener('input', () => this.validateInput());
+                // 实时检查输入
+                // this.videoUrl listener removed
                 this.doAsr.addEventListener('change', () => this.validateInput());
                 this.doTranslate.addEventListener('change', () => this.validateInput());
                 this.doRender.addEventListener('change', () => this.validateInput());
@@ -1391,11 +1396,10 @@
 
             // 验证输入
             validateInput() {
-                const hasUrl = this.videoUrl.value.trim().length > 0;
                 const hasFile = this.videoFile.files.length > 0;
                 const hasProcessing = this.doAsr.checked || this.doTranslate.checked || this.doRender.checked;
 
-                const isValid = (hasUrl || hasFile) && hasProcessing;
+                const isValid = hasFile && hasProcessing;
 
                 this.startProcessBtn.disabled = !isValid;
                 return isValid;
@@ -1419,24 +1423,28 @@
 
                     let taskId = null;
 
-                    // 如果是文件上传，先上传文件
+                    // 必须是文件上传
                     if (this.videoFile.files.length > 0) {
                         taskId = await this.uploadFile(this.videoFile.files[0]);
                         console.log('File upload task_id:', taskId);
                     } else {
-                        // 使用URL - 直接使用URL，不需要task_id
-                        taskId = null;
-                        console.log('URL mode - no task_id needed');
+                        throw new Error("请选择文件");
                     }
 
-                    // 准备处理选项 - 修复参数传递
+                    // 准备处理选项
                     const options = {
                         task_id: taskId,
-                        url: this.videoUrl.value.trim(),
+                        url: null,
                         options: {
                             translate: this.doTranslate.checked,
                             device: this.device.value,
-                            target_lang: this.targetLang.value
+                            target_lang: this.targetLang.value,
+                            translation_config: {
+                                provider: this.transProvider.value,
+                                host: this.transHost.value || 'http://127.0.0.1:11434',
+                                api_key: this.transApiKey.value,
+                                model: this.transModel.value
+                            }
                         }
                     };
 
@@ -1584,7 +1592,8 @@
                 this.downloadBtn.style.display = 'none';
 
                 // 清空输入
-                this.videoUrl.value = '';
+                // 清空输入
+                // this.videoUrl removed
                 this.videoFile.value = '';
                 this.fileUploadArea.innerHTML = `
                     <div class="upload-placeholder">
@@ -1619,18 +1628,53 @@
 
             // 加载设置
             loadSettings() {
-                // 模拟加载设置
-                this.asrModelDir.value = 'iic/SenseVoiceSmall';
-                this.asrDevice.value = 'cuda:0';
-                this.ollamaHost.value = 'http://127.0.0.1:11434';
-                this.ollamaModel.value = 'gemma3:12b';
-                this.tempDir.value = './temp_video_processing';
-                this.videoCrf.value = 22;
-                this.crfValue.textContent = 22;
+                // 从 localStorage 加载或使用默认
+                this.asrModelDir.value = localStorage.getItem('asrModelDir') || 'iic/SenseVoiceSmall';
+                this.asrDevice.value = localStorage.getItem('asrDevice') || 'cuda:0';
+
+                this.transProvider.value = localStorage.getItem('transProvider') || 'ollama';
+                this.transHost.value = localStorage.getItem('transHost') || 'http://127.0.0.1:11434';
+                this.transApiKey.value = localStorage.getItem('transApiKey') || '';
+                this.transModel.value = localStorage.getItem('transModel') || 'gemma3:12b';
+
+                this.tempDir.value = localStorage.getItem('tempDir') || './temp_video_processing';
+                this.videoCrf.value = localStorage.getItem('videoCrf') || 22;
+                this.crfValue.textContent = this.videoCrf.value;
+
+                this.updateProviderUI(); // 初始化UI状态
+            }
+
+            // 更新提供商UI
+            updateProviderUI() {
+                const provider = this.transProvider.value;
+                if (provider === 'ollama') {
+                    this.apiKeyGroup.style.display = 'none';
+                    this.transHost.placeholder = 'http://127.0.0.1:11434';
+                    this.hostHint.textContent = '例如: http://127.0.0.1:11434';
+                } else if (provider === 'deepseek') {
+                    this.apiKeyGroup.style.display = 'block';
+                    this.transHost.placeholder = 'https://api.deepseek.com';
+                    this.hostHint.textContent = '例如: https://api.deepseek.com';
+                } else if (provider === 'openai') {
+                    this.apiKeyGroup.style.display = 'block';
+                    this.transHost.placeholder = 'https://api.openai.com/v1';
+                    this.hostHint.textContent = '例如: https://api.openai.com/v1';
+                }
             }
 
             // 保存设置
             saveSettings() {
+                localStorage.setItem('asrModelDir', this.asrModelDir.value);
+                localStorage.setItem('asrDevice', this.asrDevice.value);
+
+                localStorage.setItem('transProvider', this.transProvider.value);
+                localStorage.setItem('transHost', this.transHost.value);
+                localStorage.setItem('transApiKey', this.transApiKey.value);
+                localStorage.setItem('transModel', this.transModel.value);
+
+                localStorage.setItem('tempDir', this.tempDir.value);
+                localStorage.setItem('videoCrf', this.videoCrf.value);
+
                 this.showNotification('设置已保存', 'success');
                 this.hideSettings();
             }
@@ -1640,11 +1684,17 @@
                 if (confirm('确定要重置所有设置为默认值吗？')) {
                     this.asrModelDir.value = 'iic/SenseVoiceSmall';
                     this.asrDevice.value = 'cuda:0';
-                    this.ollamaHost.value = 'http://127.0.0.1:11434';
-                    this.ollamaModel.value = 'gemma3:12b';
+
+                    this.transProvider.value = 'ollama';
+                    this.transHost.value = 'http://127.0.0.1:11434';
+                    this.transApiKey.value = '';
+                    this.transModel.value = 'gemma3:12b';
+
                     this.tempDir.value = './temp_video_processing';
                     this.videoCrf.value = 22;
                     this.crfValue.textContent = 22;
+
+                    this.updateProviderUI();
                 }
             }
 
@@ -1707,4 +1757,5 @@
         });
     </script>
 </body>
+
 </html>

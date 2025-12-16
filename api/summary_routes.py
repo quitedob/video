@@ -36,7 +36,7 @@ async def get_llm_instance(model_type: str = "deepseek"):
             )
         elif model_type == "ollama":
             base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-            model = os.getenv("OLLAMA_MODEL", "gemma2:2b")
+            model = os.getenv("OLLAMA_MODEL", "gemma3:2b")
 
             llm_instances[model_type] = OllamaLLM(
                 api_key="",

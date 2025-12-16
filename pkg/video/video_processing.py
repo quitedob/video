@@ -11,7 +11,7 @@ from pathlib import Path  # 跨平台路径
 from typing import Callable, Optional  # 类型注解
 import platform  # 系统平台
 
-import yt_dlp  # 视频下载
+
 
 
 # ---------------- 公共工具函数 ----------------  # 工具分节
@@ -59,34 +59,7 @@ def run_ffmpeg(command: list[str], on_progress: Optional[Callable[[int, str], No
 
 # ---------------- 下载与转换 ----------------  # 下载分节
 
-def download_video(url: str, output_dir: Path, on_progress: Optional[Callable[[int, str], None]] = None) -> str:  # 下载视频
-    """使用 yt-dlp 下载视频为 mp4，返回文件路径。"""  # 文档
-    output_dir = Path(output_dir)  # 规范路径
-    output_dir.mkdir(parents=True, exist_ok=True)  # 确保目录
-    def _hook(d: dict):  # 进度钩子
-        if on_progress is None:  # 无回调
-            return  # 直接返回
-        if d.get('status') == 'downloading':  # 下载中
-            total_bytes = d.get('total_bytes') or d.get('total_bytes_estimate')  # 总大小
-            if total_bytes:  # 有总大小
-                downloaded = d.get('downloaded_bytes', 0)  # 已下载
-                percent = int(downloaded / total_bytes * 100)  # 百分比
-                on_progress(percent, f"下载中... {percent}%")  # 回调
-        elif d.get('status') == 'finished':  # 完成
-            on_progress(100, "下载完成，准备合并...")  # 完成回调
-    ydl_opts = {  # 配置
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',  # mp4 优先
-        'outtmpl': str(output_dir / '%(title)s.%(ext)s'),  # 输出模板
-        'merge_output_format': 'mp4',  # 合并为 mp4
-        'progress_hooks': [_hook],  # 进度钩子
-        'noprogress': True,  # 不显示自带进度
-    }  # 结束
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:  # 创建下载器
-        info = ydl.extract_info(url, download=True)  # 下载
-        filename = ydl.prepare_filename(info)  # 文件名
-        if not filename.lower().endswith('.mp4'):  # 统一扩展
-            filename = os.path.splitext(filename)[0] + '.mp4'  # 改后缀
-    return filename  # 返回路径
+
 
 
 def _build_cmd_convert(input_path: str, output_path: str, crf: int, preset: str, hwaccel: str) -> list[str]:  # 内部：构建转码命令

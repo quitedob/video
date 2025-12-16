@@ -11,7 +11,7 @@ from flask_socketio import SocketIO
 from werkzeug.utils import secure_filename  # 安全文件名处理
 
 # 导入pkg模块功能
-from pkg.video.video_processing import check_command_available, download_video, extract_audio_wav16k, burn_ass_subtitles  # 视频处理
+from pkg.video.video_processing import check_command_available, extract_audio_wav16k, burn_ass_subtitles  # 视频处理
 from pkg.audio.audio_processing import create_asr_model, transcribe_audio_segments, AsrConfig  # 音频处理
 from pkg.translation.translation import translate_segments  # 翻译功能
 from pkg.config.config import global_config  # 全局配置
@@ -116,30 +116,16 @@ def process_video():  # 视频处理
     url = data.get('url')  # 视频URL
     options = data.get('options', {})  # 处理选项
 
-    if not task_id and not url:  # 无任务ID也无URL
-        return jsonify({'error': '需要任务ID或URL'}), 400  # 错误响应
+    if url:
+         return jsonify({'error': '不再支持URL下载功能'}), 400
 
-    # 如果有URL，下载视频
-    if url:  # 有URL
-        try:  # 尝试下载
-            # 为URL模式生成临时task_id用于进度跟踪
-            temp_task_id = str(uuid.uuid4()) if not task_id else task_id
-            emit_progress(temp_task_id, 10, '开始下载视频...')  # 进度提示
-            video_path = download_video(url, Path('temp_web'),  # 下载视频
-                                       lambda p, m: emit_progress(temp_task_id, 10 + int(p * 0.4), m))  # 进度回调
-            task_id = str(uuid.uuid4())  # 生成新任务ID
-            video_tasks[task_id] = {  # 任务状态
-                'status': 'downloaded',  # 状态
-                'file_path': video_path,  # 文件路径
-                'file_type': 'video'  # 文件类型（URL下载的都是视频）
-            }  # 结束
-        except Exception as e:  # 下载失败
-            return jsonify({'error': f'下载失败: {str(e)}'}), 500  # 错误响应
-    else:  # 使用上传的文件
-        if task_id not in video_tasks:  # 任务不存在
-            return jsonify({'error': '任务不存在'}), 404  # 错误响应
-        file_path = video_tasks[task_id]['file_path']  # 获取文件路径
-        file_type = video_tasks[task_id].get('file_type', 'unknown')  # 获取文件类型
+    if not task_id:  # 无任务ID
+        return jsonify({'error': '需要任务ID'}), 400  # 错误响应
+
+    if task_id not in video_tasks:  # 任务不存在
+        return jsonify({'error': '任务不存在'}), 404  # 错误响应
+    file_path = video_tasks[task_id]['file_path']  # 获取文件路径
+    file_type = video_tasks[task_id].get('file_type', 'unknown')  # 获取文件类型
 
     # 处理音频（从视频提取或直接转换音频文件）
     try:  # 尝试处理
@@ -211,8 +197,26 @@ def process_video():  # 视频处理
         try:  # 尝试翻译
             emit_progress(task_id, 90, '正在翻译字幕...')  # 进度提示
 
-            segments = translate_segments(segments,  # 翻译段落
-                                        progress_callback=lambda p, m: emit_progress(task_id, 90 + int(p * 0.05), m))  # 进度回调
+            trans_config = options.get('translation_config', {})
+            provider = trans_config.get('provider', 'ollama')
+            host = trans_config.get('host', 'http://127.0.0.1:11434')
+            api_key = trans_config.get('api_key', '')
+            model = trans_config.get('model', 'gemma3:12b')
+            
+            # 传递参数给 translate_segments
+            # 注意: translate_segments 的 signature 是 (subtitles, host, model, callback, **kwargs)
+            # 对于 Ollama, host 即 host
+            # 对于 OpenAILike, host 会被作为 base_url 传入 kwargs (见 translation.py 实现)
+            
+            segments = translate_segments(
+                segments, 
+                host=host, 
+                model=model,
+                progress_callback=lambda p, m: emit_progress(task_id, 90 + int(p * 0.05), m),
+                provider=provider,
+                api_key=api_key,
+                base_url=host  # 统一传 host 作为 base_url，translation.py 内部会根据 provider 处理
+            )
             video_tasks[task_id].update({  # 更新任务状态
                 'status': 'translated',  # 状态
                 'segments': segments  # 翻译结果
