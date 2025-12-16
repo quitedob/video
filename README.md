@@ -152,9 +152,45 @@ export FLASK_ENV=development
 
 项目默认使用以下 AI 模型：
 
-- **FunASR MLT Nano**: `FunAudioLLM/Fun-ASR-MLT-Nano-2512` (多语言/多任务语音识别)
+- **Fun-ASR-Nano**: `FunAudioLLM/Fun-ASR-Nano-2512` (端到端语音识别大模型)
+  - 基于数千万小时真实语音数据训练
+  - 支持31种语言，包括中文7大方言和26个地方口音
+  - 支持低延迟实时转录
+  - 需要约 2GB 显存
 
 模型会自动从 ModelScope 下载并缓存到 `model_cache` 目录。
+
+### 音频切割配置
+
+由于 Fun-ASR-Nano 模型对长音频的显存需求较高，系统会自动将音频切割成小段进行处理：
+
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `segment_duration_seconds` | 30 | 每段音频的时长（秒） |
+
+**配置方式：**
+
+1. **通过 API 参数**：在请求中传入 `segment_duration` 参数（单位：秒）
+   ```bash
+   curl -X POST https://127.0.0.1:443/api/speech-to-text \
+     -F "media_file=@audio.mp3" \
+     -F "segment_duration=30"
+   ```
+
+2. **通过配置文件**：在 `config.json` 中设置
+   ```json
+   {
+     "asr": {
+       "segment_duration_seconds": 30
+     }
+   }
+   ```
+
+**建议值：**
+- 16GB 显存：可设置 60-120 秒
+- 8GB 显存：建议 30-60 秒
+- 4GB 显存或更低：建议 15-30 秒
+- CPU 模式：建议 30 秒（内存充足时可适当增加）
 
 ### 🌟 特性
 

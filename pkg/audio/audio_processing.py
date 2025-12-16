@@ -2,13 +2,20 @@
 # 文件作用: 音频提取与 ASR 推理封装（包含模型下载目录调整、设备强制使用、健壮的结果解析）
 from __future__ import annotations
 
+# === 抑制 transformers 警告（attention_mask 相关） ===
+import warnings
+warnings.filterwarnings("ignore", message=".*attention_mask.*")
+warnings.filterwarnings("ignore", message=".*pad_token_id.*")
+
+import os
+os.environ["TOKENIZERS_PARALLELISM"] = "false"  # 抑制 tokenizers 并行警告
+
 # === 基本说明（每个代码块上方添加短中文注释） ===
 # 导入与类型注解
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
 from typing import List, Dict, Optional, Any, Callable
-import os
 import json
 import psutil
 import traceback
@@ -17,18 +24,16 @@ import subprocess
 import logging
 import threading
 import queue
-# ...
 import time
 import numpy as np
 from pkg.utils.system_monitor import SystemMonitor
 
-# ...
-
-
-
 # 设置日志格式
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
+
+# 抑制 transformers 的警告日志
+logging.getLogger("transformers").setLevel(logging.ERROR)
 
 # ---- 实用函数：获取音频时长 ----
 def get_audio_duration(audio_path: str) -> float:
@@ -58,7 +63,7 @@ def get_audio_duration(audio_path: str) -> float:
 @dataclass
 class AsrConfig:
     """ASR 参数配置"""
-    model_dir: str = "FunAudioLLM/Fun-ASR-MLT-Nano-2512"    # modelscope 模型 id 或本地路径
+    model_dir: str = "FunAudioLLM/Fun-ASR-Nano-2512"    # modelscope 模型 id 或本地路径
     device: str = "cuda:0"                               # 强制设备 'cuda:0' 或 'cpu' 或 'auto'
     trust_remote_code: bool = True
     remote_code: Optional[str] = "./model.py"
@@ -259,7 +264,47 @@ def create_asr_model(cfg: AsrConfig):
     except Exception:
         remote_code_path = cfg.remote_code
 
-    # --- 5) 尝试构造 FunASR AutoModel（首选） ---
+    # --- 5) 尝试使用 FunASRNano.from_pretrained 直接加载（官方推荐方式） ---
+    try:
+        import sys
+        # 将模型目录添加到 sys.path 以便导入 model.py
+        model_dir_path = Path(local_model_dir)
+        if model_dir_path.is_dir() and str(model_dir_path) not in sys.path:
+            sys.path.insert(0, str(model_dir_path))
+        
+        from model import FunASRNano
+        logger.info("使用 FunASRNano.from_pretrained 加载模型...")
+        model, model_kwargs = FunASRNano.from_pretrained(model=local_model_dir, device=cfg.device)
+        model.eval()
+        
+        # 包装成兼容接口
+        class FunASRNanoWrapper:
+            def __init__(self, model, kwargs):
+                self.model = model
+                self.kwargs = kwargs
+                self.model_path = kwargs.get('model_path', local_model_dir)
+            
+            def generate(self, input, cache=None, language="auto", use_itn=True, 
+                        batch_size_s=30, merge_vad=True, merge_length_s=5, **extra_kwargs):
+                # FunASRNano 使用 inference 方法
+                if isinstance(input, str):
+                    data_in = [input]
+                elif isinstance(input, list):
+                    data_in = input
+                else:
+                    data_in = [input]
+                
+                res = self.model.inference(data_in=data_in, **self.kwargs)
+                return res[0] if res else []
+        
+        wrapper = FunASRNanoWrapper(model, model_kwargs)
+        logger.info("✅ FunASRNano 模型加载成功")
+        return wrapper
+    except Exception as e:
+        logger.warning(f"FunASRNano.from_pretrained 加载失败: {e}，尝试 AutoModel...")
+        traceback.print_exc()
+
+    # --- 6) 回退到 FunASR AutoModel ---
     try:
         from funasr import AutoModel
         am = AutoModel(
@@ -317,16 +362,15 @@ def split_audio_to_segments(audio_path: str, segment_duration_minutes: int) -> l
         return segments
 
 # ---- 对单个分段或文件进行 ASR 推理并返回文本 ----
-def transcribe_audio_segment(model: Any, audio_path: str, cfg: AsrConfig) -> str:
+def transcribe_audio_segment(model: Any, audio_path: str, cfg: AsrConfig, silent: bool = False) -> str:
     """
     对单个音频文件或分割片段做推理（兼容 AutoModel 和 ModelScope pipeline）。
+    参数 silent: 静默模式，不输出每段日志
     返回：识别到的文本（字符串）
     """
-    logger.info(f"开始处理音频文件: {audio_path}")
     try:
         # AutoModel 有 generate 方法； pipeline 对象可直接调用
         if hasattr(model, "generate"):
-            # AutoModel.generate 的返回可能是 list/dict/自定义结构，取名 raw_res
             raw_res = model.generate(
                 input=str(audio_path),
                 cache={},
@@ -336,19 +380,14 @@ def transcribe_audio_segment(model: Any, audio_path: str, cfg: AsrConfig) -> str
                 merge_vad=cfg.merge_vad,
                 merge_length_s=cfg.merge_length_s,
             )
-            # FunASR 返回可能为 [ { 'key':'...', 'text':'...' } , ... ]
-            # 解析为字符串
             parsed = _parse_asr_result(raw_res)
-            logger.info(f"分段识别结果（截断显示）: {parsed[:200]}")
             return parsed
         else:
-            # pipeline 情况：直接传路径
             raw_res = model(str(audio_path))
             parsed = _parse_asr_result(raw_res)
-            logger.info(f"pipeline 返回结果（截断显示）: {parsed[:200]}")
             return parsed
     except Exception as e:
-        logger.error(f"音频推理失败: {e}")
+        logger.error(f"音频推理失败 ({audio_path}): {e}")
         traceback.print_exc()
         return ""
 
@@ -357,34 +396,58 @@ def transcribe_audio_segments(model: Any, audio_files: List[str], cfg: AsrConfig
     """
     批量识别多个音频片段（audio_files 为片段路径列表）
     返回结构: { 'total_segments': n, 'texts': [ ... ], 'joined_text': '...' }
+    优化：减少日志输出，只在开始和结束时显示关键信息
     """
-    # 启动资源监控
-    monitor = SystemMonitor(interval=2.0)
-    monitor.start()
-
+    import torch
+    total_segments = len(audio_files)
+    start_time = time.time()
+    
+    # 开始时显示一次资源状态
     try:
-        texts = []
-        total_speech_seconds = 0.0
-        for fp in audio_files:
-            text = transcribe_audio_segment(model, fp, cfg)
-            texts.append({'file': fp, 'text': text})
-            # 统计处理时长（尝试获取片段时长）
-            try:
-                dur = get_audio_duration(fp)
-                total_speech_seconds += dur
-            except Exception:
-                pass
+        if torch.cuda.is_available():
+            device_id = 0
+            free_mem, total_mem = torch.cuda.mem_get_info(device_id)
+            logger.info(f"🚀 开始批量识别 {total_segments} 个片段 | GPU显存: {free_mem/(1024**3):.2f}GB / {total_mem/(1024**3):.2f}GB")
+        else:
+            vm = psutil.virtual_memory()
+            logger.info(f"🚀 开始批量识别 {total_segments} 个片段 | 系统内存: {vm.available/(1024**3):.2f}GB / {vm.total/(1024**3):.2f}GB")
+    except Exception:
+        logger.info(f"🚀 开始批量识别 {total_segments} 个片段")
 
-        joined = " ".join([t['text'] for t in texts if t['text']])
-        return {
-            'total_segments': len(audio_files),
-            'texts': texts,
-            'joined_text': joined,
-            'time_speech': total_speech_seconds
-        }
-    finally:
-         # 确保监控停止
-        monitor.stop()
+    texts = []
+    total_speech_seconds = 0.0
+    
+    for i, fp in enumerate(audio_files):
+        # 每10段或首尾段显示进度
+        if i == 0 or i == total_segments - 1 or (i + 1) % 10 == 0:
+            print(f"[ASR] 处理进度: {i+1}/{total_segments}", end='\r')
+        
+        text = transcribe_audio_segment(model, fp, cfg, silent=True)
+        texts.append({'file': fp, 'text': text})
+        
+        try:
+            dur = get_audio_duration(fp)
+            total_speech_seconds += dur
+        except Exception:
+            pass
+
+    joined = " ".join([t['text'] for t in texts if t['text']])
+    elapsed = time.time() - start_time
+    total_chars = len(joined)
+    
+    # 结束时输出总结
+    print()  # 换行
+    logger.info(f"✅ 识别完成 | 总片段: {total_segments} | 音频时长: {total_speech_seconds:.1f}秒 | 耗时: {elapsed:.1f}秒")
+    logger.info(f"📝 总字数: {total_chars} | 前100字: {joined[:100]}...")
+    
+    return {
+        'total_segments': total_segments,
+        'texts': texts,
+        'joined_text': joined,
+        'time_speech': total_speech_seconds,
+        'elapsed_time': elapsed,
+        'total_chars': total_chars
+    }
 
 # ---- 额外工具：命令行/脚本启动时强制 GPU 的建议 ----
 # 提示：如果你想在脚本外部强制哪个 GPU 可见，请在启动程序前设置：

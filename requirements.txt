@@ -4,6 +4,8 @@ Flask-CORS>=4.0.0
 
 funasr>=1.1.7
 modelscope>=1.14.0
+datasets
+transformers
 
 ollama>=0.3.0
 

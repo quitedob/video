@@ -12,11 +12,12 @@ import os  # 环境变量
 
 @dataclass  # ASR 配置
 class ASRConfig:  # ASR 配置类
-    model_dir: str = "FunAudioLLM/Fun-ASR-MLT-Nano-2512"  # 模型目录
+    model_dir: str = "FunAudioLLM/Fun-ASR-Nano-2512"  # 模型目录
     device: str = "cuda:0"  # 设备
     trust_remote_code: bool = True  # 信任远程代码
     remote_code: Optional[str] = "./model.py"  # 远程代码路径
     vad_kwargs: Optional[dict] = None  # VAD 参数
+    segment_duration_seconds: int = 30  # 音频切割时长（秒），Fun-ASR-Nano建议30秒以内
 
     @classmethod  # 从字典创建
     def from_dict(cls, data: Dict[str, Any]) -> 'ASRConfig':  # 类方法

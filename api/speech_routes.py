@@ -77,92 +77,85 @@ def process_speech_to_text_sync(task_id: str, media_path: str, temp_dir: str,
                                device: str, language: str, segment_duration: int) -> str:
     """
     同步处理语音转文字：抽音→分片→批量识别→返回完整文本
-    移除Socket.IO，改为直接返回结果
+    优化：减少日志输出，提高处理效率
     """
+    import time as _time
     try:
-        print(f"[处理] 开始语音转文字同步处理，task_id={task_id}")
+        start_time = _time.time()
+        print(f"[ASR] 开始处理 task_id={task_id}")
 
         # 1) 抽取WAV(16k, mono)
         audio_path = os.path.join(temp_dir, 'extracted_audio.wav')
         if not extract_audio_from_media(media_path, audio_path):
             raise Exception('音频提取失败')
 
-        print(f"[处理] 音频提取完成，开始分段...")
-
-        # 2) 计算时间段（单位：分钟→秒），默认2min/段
+        # 2) 计算时间段（单位：秒），默认30秒/段
         segments = segment_audio_file(audio_path, segment_duration)
         if not segments:
             segments = [{'index': 0, 'start_time': 0, 'end_time': 0, 'duration': 0}]
 
-        print(f"[处理] 共{len(segments)}段，开始识别...")
+        print(f"[ASR] 音频提取完成，共 {len(segments)} 段，每段 {segment_duration} 秒")
 
-        # 3) 构建ASR模型（AutoModel，SenseVoiceSmall + VAD参数）
+        # 3) 构建ASR模型
         asr_config = AsrConfig(
-            model_dir="iic/SenseVoiceSmall",
             device=device if device in ("auto", "cpu") else "cuda:0",
             trust_remote_code=True,
             remote_code="./model.py",
-            vad_kwargs={"max_single_segment_time": 30000},  # 每个VAD子段最长30秒（毫秒）
-            batch_size_s=60,        # 动态batch：累计音频时长（秒）
-            merge_vad=True,         # 合并VAD碎片
-            merge_length_s=15,      # 合并后目标长度（秒）
-            use_itn=True,           # 输出包含标点与ITN
+            vad_kwargs={"max_single_segment_time": 30000},
+            batch_size_s=60,
+            merge_vad=True,
+            merge_length_s=15,
+            use_itn=True,
         )
         model = create_asr_model(asr_config)
 
-        # 4) 批量识别：先切出所有片段 → 批量送入 ASR
+        # 4) 批量切片（静默模式，不输出每段日志）
         segment_paths = []
         for i, seg in enumerate(segments):
-            print(f"[处理] 切片第{i+1}/{len(segments)}段...")
-
-            # 精确切片
             segment_audio_path = os.path.join(temp_dir, f'segment_{i:04d}.wav')
-            start_time = seg['start_time']
+            start = seg['start_time']
             duration = max(0.1, seg['end_time'] - seg['start_time'])
             cmd = [
                 'ffmpeg', '-i', audio_path,
-                '-ss', str(start_time),
+                '-ss', str(start),
                 '-t', str(duration),
                 '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le',
-                '-y', segment_audio_path
+                '-y', '-loglevel', 'error',  # 静默ffmpeg输出
+                segment_audio_path
             ]
             subprocess.run(cmd, check=True, capture_output=True)
             segment_paths.append(segment_audio_path)
 
-        print(f"[处理] 开始批量识别，共{len(segment_paths)}个片段...")
-
-        # 批量识别
+        # 5) 批量识别（内部会输出进度和总结）
         try:
             batch_result = transcribe_audio_segments(model, segment_paths, asr_config)
             final_text = batch_result.get('joined_text', '')
             if not final_text:
-                # 降级：手动拼接texts列表
                 texts = batch_result.get('texts', [])
                 final_text = '\n'.join([item.get('text', '') for item in texts if item.get('text')])
         except Exception as e:
-            print(f"[处理] 批量识别失败: {e}")
+            print(f"[ASR] 批量识别失败: {e}")
             final_text = "识别过程中发生错误"
 
-        # 清理分段文件
+        # 6) 清理临时文件
         for segment_path in segment_paths:
             try:
                 os.remove(segment_path)
             except Exception:
                 pass
-
-        # 清理提取的音频文件
         try:
             os.remove(audio_path)
         except Exception:
             pass
 
-        print(f"[处理] 语音转文字处理完成，文本长度: {len(final_text)}")
+        elapsed = _time.time() - start_time
+        print(f"[ASR] 处理完成 | 总耗时: {elapsed:.1f}秒 | 总字数: {len(final_text)}")
         return final_text
 
     except Exception as e:
         import traceback
-        print(f"[处理] 语音转文字同步处理异常: {str(e)}")
-        print(traceback.format_exc())
+        print(f"[ASR] 处理异常: {str(e)}")
+        traceback.print_exc()
         raise
 
 
@@ -185,7 +178,7 @@ def process_speech_to_text(task_id: str, media_path: str, temp_dir: str,
         if notify != 'none':
             emit_speech_progress(task_id, 40, '音频提取完成，开始分段...')
 
-        # 2) 计算时间段（单位：分钟→秒），默认2min/段
+        # 2) 计算时间段（单位：秒），默认30秒/段（适合Fun-ASR-Nano模型）
         segments = segment_audio_file(audio_path, segment_duration)
         if not segments:
             segments = [{'index': 0, 'start_time': 0, 'end_time': 0, 'duration': 0}]
@@ -196,10 +189,9 @@ def process_speech_to_text(task_id: str, media_path: str, temp_dir: str,
                 'current_segment': 0
             })
 
-        # 3) 构建ASR模型（AutoModel，SenseVoiceSmall + VAD参数）
-        # 简短中文注释：SenseVoice 推荐开启VAD并设置合并参数；use_itn 打开标点/逆文本正则化
+        # 3) 构建ASR模型（AutoModel，自动选择默认模型 + VAD参数）
+        # 简短中文注释：默认使用 FunASR MLT Nano；use_itn 打开标点/逆文本正则化
         asr_config = AsrConfig(
-            model_dir="iic/SenseVoiceSmall",
             device=device if device in ("auto", "cpu") else "cuda:0",
             trust_remote_code=True,
             remote_code="./model.py",
@@ -321,8 +313,8 @@ def speech_to_text_simple():
             if not extract_audio_from_media(media_path, audio_path, lambda *_: None):
                 return jsonify({'error': '音频提取失败'}), 500
 
-            # 2min切片
-            segments = segment_audio_file(audio_path, int(request.form.get('segment_duration', 120)))
+            # 30秒切片（适合Fun-ASR-Nano模型）
+            segments = segment_audio_file(audio_path, int(request.form.get('segment_duration', 30)))
             if not segments:
                 segments = [{'index': 0, 'start_time': 0, 'end_time': 0, 'duration': 0}]
 
@@ -405,7 +397,7 @@ def speech_to_text():
 
         device = request.form.get('device', 'auto')
         language = request.form.get('language', 'auto')
-        segment_duration = int(request.form.get('segment_duration', 120))  # 默认2分钟
+        segment_duration = int(request.form.get('segment_duration', 30))  # 默认30秒，适合Fun-ASR-Nano
 
         try:
             # 直接调用语音转文字处理（同步方式）

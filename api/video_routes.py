@@ -166,9 +166,8 @@ def process_video():  # 视频处理
 
         # 创建ASR模型
         device = options.get('device', 'auto')  # 获取设备参数
-        # 简短中文注释：为视频字幕也配置完整的SenseVoice参数
+        # 简短中文注释：为视频字幕也配置完整的参数
         asr_config = AsrConfig(
-            model_dir="iic/SenseVoiceSmall",
             device=device if device in ("auto", "cpu") else "cuda:0",
             trust_remote_code=True,
             remote_code="./model.py",
@@ -481,8 +480,8 @@ def extract_audio_from_media(media_path: str, output_path: str, progress_callbac
         return False  # 返回失败
 
 
-def segment_audio_file(audio_path: str, segment_duration_minutes: int) -> list:  # 分段音频函数
-    """将音频文件分段处理"""  # 文档
+def segment_audio_file(audio_path: str, segment_duration_seconds: int = 30) -> list:  # 分段音频函数
+    """将音频文件分段处理，segment_duration_seconds为每段时长（秒）"""  # 文档
     segments = []  # 分段列表
 
     try:  # 尝试分段
@@ -491,10 +490,8 @@ def segment_audio_file(audio_path: str, segment_duration_minutes: int) -> list: 
             sample_rate = wav_file.getframerate()  # 采样率
             channels = wav_file.getnchannels()  # 声道数
             duration_seconds = wav_file.getnframes() / sample_rate  # 时长秒
-            duration_minutes = duration_seconds / 60  # 时长分钟
 
-        # 计算分段数量
-        segment_duration_seconds = segment_duration_minutes * 60  # 分段时长秒
+        # 计算分段数量（segment_duration_seconds 直接是秒）
         total_segments = int(duration_seconds // segment_duration_seconds) + 1  # 总分段数
 
         # 创建分段

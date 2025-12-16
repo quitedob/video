@@ -17,10 +17,6 @@ def check_dependencies() -> dict:  # 检查依赖函数
     if not check_command_available('ffmpeg'):  # 检测 ffmpeg 命令
         missing_deps.append("FFmpeg")  # 添加到列表
 
-    # 检查 yt-dlp（用于下载视频）
-    if not check_command_available('yt-dlp'):  # 检测 yt-dlp 命令
-        missing_deps.append("yt-dlp")  # 添加到列表
-
     return {  # 返回结果
         'all_good': len(missing_deps) == 0,  # 是否都正常
         'missing_deps': missing_deps  # 缺失依赖
