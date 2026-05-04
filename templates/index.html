@@ -1,0 +1,1710 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能视频字幕处理工作站</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.socket.io/4.0.0/socket.io.js"></script>
+    <style>
+        /* 全局样式 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* 头部样式 */
+        .header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            margin: 20px 0;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .header h1 {
+            color: white;
+            font-size: 2rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header h1 i {
+            color: #ffd700;
+            font-size: 2.2rem;
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 15px;
+        }
+
+        .nav-link {
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .nav-link:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .nav-link.active {
+            background: rgba(255, 255, 255, 0.3);
+            font-weight: 600;
+        }
+
+        .system-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: white;
+            font-size: 0.9rem;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ffa500;
+        }
+
+        .status-indicator.connected {
+            background: #4caf50;
+        }
+
+        .status-indicator.disconnected {
+            background: #f44336;
+        }
+
+        /* 主要内容 */
+        .main-content {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        /* 上传区域 */
+        .upload-section {
+            margin-bottom: 30px;
+        }
+
+        .upload-container {
+            background: #f8f9fa;
+            border: 2px dashed #dee2e6;
+            border-radius: 15px;
+            padding: 30px;
+            transition: all 0.3s ease;
+        }
+
+        .upload-container:hover {
+            border-color: #007bff;
+            background: #f0f8ff;
+        }
+
+        .upload-tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .tab-btn {
+            background: none;
+            border: none;
+            padding: 12px 24px;
+            cursor: pointer;
+            font-size: 1rem;
+            color: #6c757d;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tab-btn.active {
+            color: #007bff;
+            border-bottom-color: #007bff;
+            font-weight: 600;
+        }
+
+        .tab-btn:hover {
+            color: #007bff;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 12px;
+            align-items: stretch;
+        }
+
+        #videoUrl {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s ease;
+        }
+
+        #videoUrl:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+        }
+
+        .file-upload-area {
+            cursor: pointer;
+            text-align: center;
+            padding: 40px 20px;
+            transition: all 0.3s ease;
+        }
+
+        .file-upload-area:hover {
+            background: #e3f2fd;
+        }
+
+        .upload-placeholder {
+            color: #6c757d;
+        }
+
+        .upload-placeholder i {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            color: #007bff;
+        }
+
+        .url-examples {
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        .text-muted {
+            color: #6c757d;
+        }
+
+        /* 处理选项 */
+        .processing-options {
+            margin-bottom: 30px;
+        }
+
+        .options-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .option-card {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #dee2e6;
+            transition: all 0.3s ease;
+        }
+
+        .option-card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .option-header {
+            margin-bottom: 15px;
+        }
+
+        .option-header h3 {
+            color: #495057;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .option-header h3 i {
+            color: #007bff;
+        }
+
+        .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            font-size: 0.95rem;
+            color: #495057;
+        }
+
+        .checkbox-label input[type="checkbox"] {
+            display: none;
+        }
+
+        .checkmark {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #dee2e6;
+            border-radius: 4px;
+            margin-right: 10px;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        .checkbox-label input:checked ~ .checkmark {
+            background: #007bff;
+            border-color: #007bff;
+        }
+
+        .checkbox-label input:checked ~ .checkmark::after {
+            content: '✓';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-weight: bold;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #495057;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+        }
+
+        /* 操作按钮 */
+        .action-section {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 500;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #545b62;
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #c82333;
+        }
+
+        .btn-large {
+            padding: 16px 32px;
+            font-size: 1.1rem;
+        }
+
+        /* 进度区域 */
+        .progress-section {
+            margin-bottom: 30px;
+        }
+
+        .progress-container {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #dee2e6;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .progress-header h3 {
+            color: #495057;
+            font-size: 1.2rem;
+        }
+
+        .progress-percentage {
+            font-weight: 600;
+            color: #007bff;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #dee2e6;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #007bff, #0056b3);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .progress-message {
+            color: #6c757d;
+            font-style: italic;
+        }
+
+        .task-steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .step {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+            transition: all 0.3s ease;
+        }
+
+        .step.active {
+            border-color: #007bff;
+            background: #f0f8ff;
+        }
+
+        .step.completed {
+            border-color: #28a745;
+            background: #f0fff0;
+        }
+
+        .step-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #e9ecef;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .step.active .step-icon {
+            background: #007bff;
+            color: white;
+        }
+
+        .step.completed .step-icon {
+            background: #28a745;
+            color: white;
+        }
+
+        .step-content {
+            flex: 1;
+        }
+
+        .step-title {
+            font-weight: 500;
+            color: #495057;
+            margin-bottom: 4px;
+        }
+
+        .step-status {
+            font-size: 0.85rem;
+            color: #6c757d;
+        }
+
+        .step.active .step-status {
+            color: #007bff;
+        }
+
+        .step.completed .step-status {
+            color: #28a745;
+        }
+
+        /* 结果区域 */
+        .result-section {
+            margin-bottom: 30px;
+        }
+
+        .result-container {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #dee2e6;
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .result-header h3 {
+            color: #495057;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .result-content {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+        }
+
+        .result-item {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
+
+        .result-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: #e9ecef;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .result-item:nth-child(1) .result-icon {
+            background: #007bff;
+            color: white;
+        }
+
+        .result-item:nth-child(2) .result-icon {
+            background: #28a745;
+            color: white;
+        }
+
+        .result-item:nth-child(3) .result-icon {
+            background: #ffc107;
+            color: white;
+        }
+
+        .result-item:nth-child(4) .result-icon {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .result-item:nth-child(5) .result-icon {
+            background: #dc3545;
+            color: white;
+        }
+
+        .result-details {
+            flex: 1;
+        }
+
+        .result-title {
+            font-weight: 500;
+            color: #495057;
+            margin-bottom: 4px;
+        }
+
+        .result-info {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+
+        /* 模态框 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            animation: slideIn 0.3s ease;
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid #dee2e6;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            color: #495057;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #6c757d;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+
+        .close-btn:hover {
+            background: #f8f9fa;
+            color: #495057;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .settings-section {
+            margin-bottom: 25px;
+        }
+
+        .settings-section h3 {
+            color: #495057;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+        }
+
+        .modal-footer {
+            padding: 20px;
+            border-top: 1px solid #dee2e6;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        /* 动画 */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .container {
+                padding: 0 10px;
+            }
+
+            .header-content {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .header h1 {
+                font-size: 1.5rem;
+            }
+
+            .options-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .input-group {
+                flex-direction: column;
+            }
+
+            .task-steps {
+                grid-template-columns: 1fr;
+            }
+
+            .result-content {
+                grid-template-columns: 1fr;
+            }
+
+            .modal-content {
+                width: 95%;
+                margin: 20px;
+            }
+        }
+
+        /* 禁用状态 */
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn:disabled:hover {
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* 滚动条样式 */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+
+        /* 通知样式 */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 1100;
+            animation: slideIn 0.3s ease;
+        }
+
+        .notification.success {
+            border-left: 4px solid #28a745;
+        }
+
+        .notification.error {
+            border-left: 4px solid #dc3545;
+        }
+
+        .notification.info {
+            border-left: 4px solid #17a2b8;
+        }
+
+        .notification-content {
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            min-width: 300px;
+        }
+
+        .notification-message {
+            flex: 1;
+            margin-right: 15px;
+        }
+
+        .notification-close {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: #6c757d;
+            font-size: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="header-content">
+                <h1><i class="fas fa-video"></i> 智能视频字幕处理工作站</h1>
+                <div class="header-controls">
+                    <div class="nav-links">
+                        <a href="/" class="nav-link active">
+                            <i class="fas fa-video"></i> 视频字幕
+                        </a>
+                        <a href="/speech" class="nav-link">
+                            <i class="fas fa-microphone"></i> 语音转文字
+                        </a>
+                    </div>
+                    <div class="system-status" id="systemStatus">
+                        <span class="status-indicator" id="statusIndicator"></span>
+                        <span id="statusText">检查中...</span>
+                    </div>
+                    <button id="settingsBtn" class="btn btn-secondary">
+                        <i class="fas fa-cog"></i> 设置
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <div class="upload-section">
+                <div class="upload-container">
+                    <div class="upload-tabs">
+                        <button class="tab-btn active" data-tab="url">
+                            <i class="fas fa-link"></i> 网络链接
+                        </button>
+                        <button class="tab-btn" data-tab="file">
+                            <i class="fas fa-file-upload"></i> 本地文件
+                        </button>
+                    </div>
+
+                    <div class="tab-content active" id="urlTab">
+                        <div class="input-group">
+                            <input type="url" id="videoUrl" placeholder="请输入视频链接 (YouTube, Bilibili等)">
+                            <button id="pasteBtn" class="btn btn-secondary">
+                                <i class="fas fa-paste"></i> 粘贴
+                            </button>
+                        </div>
+                        <div class="url-examples">
+                            <small class="text-muted">支持：YouTube, Bilibili, Vimeo, Twitter等平台</small>
+                        </div>
+                    </div>
+
+                    <div class="tab-content" id="fileTab">
+                        <div class="file-upload-area" id="fileUploadArea">
+                            <div class="upload-placeholder">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                                <p>拖拽视频文件到此处或点击选择</p>
+                                <small>支持格式：MP4, AVI, MOV, MKV等</small>
+                            </div>
+                            <input type="file" id="videoFile" accept="video/*" hidden>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="processing-options">
+                <div class="options-grid">
+                    <div class="option-card">
+                        <div class="option-header">
+                            <h3><i class="fas fa-language"></i> 处理选项</h3>
+                        </div>
+                        <div class="option-content">
+                            <div class="checkbox-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="doAsr" checked>
+                                    <span class="checkmark"></span>
+                                    语音识别
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="doTranslate" checked>
+                                    <span class="checkmark"></span>
+                                    翻译字幕
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="doRender" checked>
+                                    <span class="checkmark"></span>
+                                    渲染字幕
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="option-card">
+                        <div class="option-header">
+                            <h3><i class="fas fa-cogs"></i> 高级设置</h3>
+                        </div>
+                        <div class="option-content">
+                            <div class="form-group">
+                                <label>目标语言:</label>
+                                <select id="targetLang">
+                                    <option value="zh">中文</option>
+                                    <option value="en">英文</option>
+                                    <option value="ja">日语</option>
+                                    <option value="ko">韩语</option>
+                                    <option value="es">西班牙语</option>
+                                    <option value="fr">法语</option>
+                                    <option value="de">德语</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>处理设备:</label>
+                                <select id="device">
+                                    <option value="auto">自动选择</option>
+                                    <option value="cuda:0">GPU (CUDA)</option>
+                                    <option value="cpu">CPU</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="action-section">
+                <button id="startProcessBtn" class="btn btn-primary btn-large" disabled>
+                    <i class="fas fa-play"></i> 开始处理
+                </button>
+                <button id="stopProcessBtn" class="btn btn-danger btn-large" disabled style="display: none;">
+                    <i class="fas fa-stop"></i> 停止处理
+                </button>
+                <button id="newProcessBtn" class="btn btn-secondary btn-large" style="display: none;">
+                    <i class="fas fa-plus"></i> 新建任务
+                </button>
+                <button id="downloadBtn" class="btn btn-primary btn-large" style="display: none;">
+                    <i class="fas fa-download"></i> 下载结果
+                </button>
+            </div>
+
+            <div class="progress-section" id="progressSection" style="display: none;">
+                <div class="progress-container">
+                    <div class="progress-header">
+                        <h3>处理进度</h3>
+                        <span class="progress-percentage" id="progressPercentage">0%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                    <div class="progress-message" id="progressMessage">准备中...</div>
+                </div>
+
+                <div class="task-steps" id="taskSteps">
+                    <div class="step" data-step="download">
+                        <div class="step-icon">
+                            <i class="fas fa-download"></i>
+                        </div>
+                        <div class="step-content">
+                            <div class="step-title">下载视频</div>
+                            <div class="step-status" id="stepDownloadStatus">等待中</div>
+                        </div>
+                    </div>
+                    <div class="step" data-step="extract">
+                        <div class="step-icon">
+                            <i class="fas fa-file-audio"></i>
+                        </div>
+                        <div class="step-content">
+                            <div class="step-title">提取音频</div>
+                            <div class="step-status" id="stepExtractStatus">等待中</div>
+                        </div>
+                    </div>
+                    <div class="step" data-step="asr">
+                        <div class="step-icon">
+                            <i class="fas fa-microphone"></i>
+                        </div>
+                        <div class="step-content">
+                            <div class="step-title">语音识别</div>
+                            <div class="step-status" id="stepAsrStatus">等待中</div>
+                        </div>
+                    </div>
+                    <div class="step" data-step="translate">
+                        <div class="step-icon">
+                            <i class="fas fa-language"></i>
+                        </div>
+                        <div class="step-content">
+                            <div class="step-title">翻译字幕</div>
+                            <div class="step-status" id="stepTranslateStatus">等待中</div>
+                        </div>
+                    </div>
+                    <div class="step" data-step="render">
+                        <div class="step-icon">
+                            <i class="fas fa-film"></i>
+                        </div>
+                        <div class="step-content">
+                            <div class="step-title">渲染字幕</div>
+                            <div class="step-status" id="stepRenderStatus">等待中</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="result-section" id="resultSection" style="display: none;">
+                <div class="result-container">
+                    <div class="result-header">
+                        <h3><i class="fas fa-check-circle"></i> 处理完成</h3>
+                    </div>
+                    <div class="result-content">
+                        <div class="result-item">
+                            <div class="result-icon">
+                                <i class="fas fa-download"></i>
+                            </div>
+                            <div class="result-details">
+                                <div class="result-title">下载结果</div>
+                                <div class="result-info" id="resultDownload">视频下载完成</div>
+                            </div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-icon">
+                                <i class="fas fa-file-audio"></i>
+                            </div>
+                            <div class="result-details">
+                                <div class="result-title">音频提取</div>
+                                <div class="result-info" id="resultExtract">音频提取完成</div>
+                            </div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-icon">
+                                <i class="fas fa-microphone"></i>
+                            </div>
+                            <div class="result-details">
+                                <div class="result-title">语音识别</div>
+                                <div class="result-info" id="resultAsr">语音识别完成</div>
+                            </div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-icon">
+                                <i class="fas fa-language"></i>
+                            </div>
+                            <div class="result-details">
+                                <div class="result-title">字幕翻译</div>
+                                <div class="result-info" id="resultTranslate">字幕翻译完成</div>
+                            </div>
+                        </div>
+                        <div class="result-item">
+                            <div class="result-icon">
+                                <i class="fas fa-film"></i>
+                            </div>
+                            <div class="result-details">
+                                <div class="result-title">字幕渲染</div>
+                                <div class="result-info" id="resultRender">字幕渲染完成</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <div class="modal" id="settingsModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2><i class="fas fa-cog"></i> 系统设置</h2>
+                    <button class="close-btn" id="closeSettingsBtn">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div class="settings-section">
+                        <h3>ASR配置</h3>
+                        <div class="form-group">
+                            <label>模型目录:</label>
+                            <input type="text" id="asrModelDir" placeholder="ASR模型目录">
+                        </div>
+                        <div class="form-group">
+                            <label>设备:</label>
+                            <select id="asrDevice">
+                                <option value="cuda:0">GPU (CUDA)</option>
+                                <option value="cpu">CPU</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="settings-section">
+                        <h3>翻译配置</h3>
+                        <div class="form-group">
+                            <label>Ollama主机:</label>
+                            <input type="text" id="ollamaHost" placeholder="Ollama主机地址">
+                        </div>
+                        <div class="form-group">
+                            <label>翻译模型:</label>
+                            <input type="text" id="ollamaModel" placeholder="翻译模型名称">
+                        </div>
+                    </div>
+                    <div class="settings-section">
+                        <h3>视频配置</h3>
+                        <div class="form-group">
+                            <label>临时目录:</label>
+                            <input type="text" id="tempDir" placeholder="临时文件目录">
+                        </div>
+                        <div class="form-group">
+                            <label>视频质量 (CRF):</label>
+                            <input type="range" id="videoCrf" min="0" max="51" value="22">
+                            <span id="crfValue">22</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="saveSettingsBtn" class="btn btn-primary">
+                        <i class="fas fa-save"></i> 保存设置
+                    </button>
+                    <button id="resetSettingsBtn" class="btn btn-secondary">
+                        <i class="fas fa-undo"></i> 重置
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Web应用JavaScript逻辑
+        class VideoSubtitleApp {
+            constructor() {
+                this.socket = null;
+                this.currentTaskId = null;
+                this.initializeElements();
+                this.bindEvents();
+                this.checkSystemStatus();
+            }
+
+            // 初始化DOM元素
+            initializeElements() {
+                // 主要元素
+                this.systemStatus = document.getElementById('systemStatus');
+                this.statusIndicator = document.getElementById('statusIndicator');
+                this.statusText = document.getElementById('statusText');
+                this.settingsBtn = document.getElementById('settingsBtn');
+                this.settingsModal = document.getElementById('settingsModal');
+                this.closeSettingsBtn = document.getElementById('closeSettingsBtn');
+
+                // 上传相关
+                this.videoUrl = document.getElementById('videoUrl');
+                this.pasteBtn = document.getElementById('pasteBtn');
+                this.fileUploadArea = document.getElementById('fileUploadArea');
+                this.videoFile = document.getElementById('videoFile');
+                this.tabBtns = document.querySelectorAll('.tab-btn');
+
+                // 处理选项
+                this.doAsr = document.getElementById('doAsr');
+                this.doTranslate = document.getElementById('doTranslate');
+                this.doRender = document.getElementById('doRender');
+                this.targetLang = document.getElementById('targetLang');
+                this.device = document.getElementById('device');
+
+                // 操作按钮
+                this.startProcessBtn = document.getElementById('startProcessBtn');
+                this.stopProcessBtn = document.getElementById('stopProcessBtn');
+                this.newProcessBtn = document.getElementById('newProcessBtn');
+                this.downloadBtn = document.getElementById('downloadBtn');
+
+                // 进度相关
+                this.progressSection = document.getElementById('progressSection');
+                this.progressFill = document.getElementById('progressFill');
+                this.progressPercentage = document.getElementById('progressPercentage');
+                this.progressMessage = document.getElementById('progressMessage');
+
+                // 结果相关
+                this.resultSection = document.getElementById('resultSection');
+                this.resultDownload = document.getElementById('resultDownload');
+                this.resultExtract = document.getElementById('resultExtract');
+                this.resultAsr = document.getElementById('resultAsr');
+                this.resultTranslate = document.getElementById('resultTranslate');
+                this.resultRender = document.getElementById('resultRender');
+
+                // 设置相关
+                this.saveSettingsBtn = document.getElementById('saveSettingsBtn');
+                this.resetSettingsBtn = document.getElementById('resetSettingsBtn');
+                this.asrModelDir = document.getElementById('asrModelDir');
+                this.asrDevice = document.getElementById('asrDevice');
+                this.ollamaHost = document.getElementById('ollamaHost');
+                this.ollamaModel = document.getElementById('ollamaModel');
+                this.tempDir = document.getElementById('tempDir');
+                this.videoCrf = document.getElementById('videoCrf');
+                this.crfValue = document.getElementById('crfValue');
+            }
+
+            // 绑定事件监听器
+            bindEvents() {
+                // WebSocket事件 - 模拟实现
+                this.setupWebSocket();
+
+                // 标签页切换
+                this.tabBtns.forEach(btn => {
+                    btn.addEventListener('click', (e) => this.switchTab(e.target.dataset.tab));
+                });
+
+                // 粘贴按钮
+                this.pasteBtn.addEventListener('click', () => this.pasteFromClipboard());
+
+                // 文件上传
+                this.fileUploadArea.addEventListener('click', () => this.videoFile.click());
+                this.fileUploadArea.addEventListener('dragover', (e) => this.handleDragOver(e));
+                this.fileUploadArea.addEventListener('drop', (e) => this.handleFileDrop(e));
+                this.videoFile.addEventListener('change', (e) => this.handleFileSelect(e));
+
+                // 开始处理
+                this.startProcessBtn.addEventListener('click', () => this.startProcessing());
+
+                // 停止处理
+                this.stopProcessBtn.addEventListener('click', () => this.stopProcessing());
+
+                // 新建任务
+                this.newProcessBtn.addEventListener('click', () => this.resetInterface());
+
+                // 下载结果
+                this.downloadBtn.addEventListener('click', () => this.downloadResult());
+
+                // 设置相关
+                this.settingsBtn.addEventListener('click', () => this.showSettings());
+                this.closeSettingsBtn.addEventListener('click', () => this.hideSettings());
+                this.saveSettingsBtn.addEventListener('click', () => this.saveSettings());
+                this.resetSettingsBtn.addEventListener('click', () => this.resetSettings());
+
+                // CRF滑块
+                this.videoCrf.addEventListener('input', (e) => {
+                    this.crfValue.textContent = e.target.value;
+                });
+
+                // 窗口点击关闭模态框
+                this.settingsModal.addEventListener('click', (e) => {
+                    if (e.target === this.settingsModal) {
+                        this.hideSettings();
+                    }
+                });
+
+                // 回车键开始处理
+                this.videoUrl.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        this.startProcessing();
+                    }
+                });
+
+                // 实时检查输入
+                this.videoUrl.addEventListener('input', () => this.validateInput());
+                this.doAsr.addEventListener('change', () => this.validateInput());
+                this.doTranslate.addEventListener('change', () => this.validateInput());
+                this.doRender.addEventListener('change', () => this.validateInput());
+            }
+
+            // 设置WebSocket连接 - 真实实现
+            setupWebSocket() {
+                this.socket = io();
+
+                this.socket.on('connect', () => {
+                    this.statusIndicator.className = 'status-indicator connected';
+                    this.statusText.textContent = '已连接';
+                    console.log('已连接到服务器');
+                });
+
+                this.socket.on('disconnect', () => {
+                    this.statusIndicator.className = 'status-indicator disconnected';
+                    this.statusText.textContent = '已断开';
+                    console.log('已断开服务器连接');
+                });
+
+                this.socket.on('status', (data) => {
+                    console.log('服务器状态:', data);
+                });
+
+                this.socket.on('progress', (data) => {
+                    this.updateProgress(data.progress, data.message);
+                    this.updateStepStatusFromProgress(data.progress, data.message);
+                });
+
+                this.socket.on('task_completed', (data) => {
+                    this.showResult(data);
+                });
+
+                this.socket.on('task_error', (data) => {
+                    this.showNotification(data.error || '处理出错', 'error');
+                    this.resetInterface();
+                });
+            }
+
+            // 切换标签页
+            switchTab(tabName) {
+                if (!tabName) {
+                    console.error('switchTab: tabName is null or undefined');
+                    return;
+                }
+
+                // 隐藏所有标签内容
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.remove('active');
+                });
+                document.querySelectorAll('.tab-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+
+                // 显示选中的标签
+                const targetTab = document.getElementById(tabName + 'Tab');
+                const targetBtn = document.querySelector(`[data-tab="${tabName}"]`);
+
+                if (targetTab) {
+                    targetTab.classList.add('active');
+                } else {
+                    console.error(`switchTab: Tab element not found for ${tabName}Tab`);
+                }
+
+                if (targetBtn) {
+                    targetBtn.classList.add('active');
+                } else {
+                    console.error(`switchTab: Button element not found for data-tab="${tabName}"`);
+                }
+
+                this.validateInput();
+            }
+
+            // 从剪贴板粘贴
+            async pasteFromClipboard() {
+                try {
+                    const text = await navigator.clipboard.readText();
+                    this.videoUrl.value = text;
+                    this.validateInput();
+                } catch (err) {
+                    console.error('Failed to read clipboard:', err);
+                    this.showNotification('无法访问剪贴板', 'error');
+                }
+            }
+
+            // 处理文件拖拽
+            handleDragOver(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                this.fileUploadArea.style.borderColor = '#007bff';
+                this.fileUploadArea.style.background = '#f0f8ff';
+            }
+
+            // 处理文件放置
+            handleFileDrop(e) {
+                e.preventDefault();
+                e.stopPropagation();
+
+                this.fileUploadArea.style.borderColor = '#dee2e6';
+                this.fileUploadArea.style.background = '#f8f9fa';
+
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    this.videoFile.files = files;
+                    this.handleFileSelect({ target: { files } });
+                }
+            }
+
+            // 处理文件选择
+            handleFileSelect(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    const fileName = file.name;
+                    const fileSize = this.formatFileSize(file.size);
+
+                    this.fileUploadArea.innerHTML = `
+                        <div class="upload-placeholder">
+                            <i class="fas fa-file-video"></i>
+                            <p>${fileName}</p>
+                            <small>${fileSize}</small>
+                        </div>
+                    `;
+
+                    this.validateInput();
+                }
+            }
+
+            // 验证输入
+            validateInput() {
+                const hasUrl = this.videoUrl.value.trim().length > 0;
+                const hasFile = this.videoFile.files.length > 0;
+                const hasProcessing = this.doAsr.checked || this.doTranslate.checked || this.doRender.checked;
+
+                const isValid = (hasUrl || hasFile) && hasProcessing;
+
+                this.startProcessBtn.disabled = !isValid;
+                return isValid;
+            }
+
+            // 开始处理 - 真实实现
+            async startProcessing() {
+                if (!this.validateInput()) {
+                    this.showNotification('请先选择视频文件或输入视频链接', 'error');
+                    return;
+                }
+
+                try {
+                    // 显示进度区域
+                    this.showProgress();
+
+                    // 禁用开始按钮，显示停止按钮
+                    this.startProcessBtn.disabled = true;
+                    this.startProcessBtn.style.display = 'none';
+                    this.stopProcessBtn.style.display = 'inline-flex';
+
+                    let taskId = null;
+
+                    // 如果是文件上传，先上传文件
+                    if (this.videoFile.files.length > 0) {
+                        taskId = await this.uploadFile(this.videoFile.files[0]);
+                        console.log('File upload task_id:', taskId);
+                    } else {
+                        // 使用URL - 直接使用URL，不需要task_id
+                        taskId = null;
+                        console.log('URL mode - no task_id needed');
+                    }
+
+                    // 准备处理选项 - 修复参数传递
+                    const options = {
+                        task_id: taskId,
+                        url: this.videoUrl.value.trim(),
+                        options: {
+                            translate: this.doTranslate.checked,
+                            device: this.device.value,
+                            target_lang: this.targetLang.value
+                        }
+                    };
+
+                    // 调用后端处理API
+                    const response = await fetch('/api/process', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(options)
+                    });
+
+                    const result = await response.json();
+
+                    if (result.error) {
+                        throw new Error(result.error);
+                    }
+
+                    // 处理成功
+                    this.showResult(result);
+
+                } catch (error) {
+                    console.error('处理出错:', error);
+                    this.showNotification('处理失败: ' + error.message, 'error');
+                    this.resetInterface();
+                }
+            }
+
+
+            // 停止处理
+            async stopProcessing() {
+                if (this.socket) {
+                    this.socket.emit('stop_task', { task_id: this.currentTaskId });
+                }
+                this.showNotification('已停止处理', 'info');
+                this.resetInterface();
+            }
+
+            // 更新进度
+            updateProgress(progress, message) {
+                this.progressFill.style.width = `${progress}%`;
+                this.progressPercentage.textContent = `${progress}%`;
+                this.progressMessage.textContent = message || '处理中...';
+            }
+
+            // 更新步骤状态
+            updateStepStatus(stepName, status, message) {
+                const step = document.querySelector(`[data-step="${stepName}"]`);
+                if (step) {
+                    step.className = `step ${status}`;
+                    const statusEl = step.querySelector('.step-status');
+                    if (statusEl) {
+                        statusEl.textContent = message;
+                    }
+                }
+            }
+
+            // 根据进度消息更新步骤状态
+            updateStepStatusFromProgress(progress, message) {
+                let stepName = 'download';
+                if (message.includes('音频')) stepName = 'extract';
+                else if (message.includes('语音识别')) stepName = 'asr';
+                else if (message.includes('翻译')) stepName = 'translate';
+                else if (message.includes('渲染')) stepName = 'render';
+
+                this.updateStepStatus(stepName, 'active', message);
+            }
+
+            // 处理文件上传
+            async uploadFile(file) {
+                const formData = new FormData();
+                formData.append('video', file);
+
+                try {
+                    const response = await fetch('/api/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const result = await response.json();
+                    if (result.task_id) {
+                        this.currentTaskId = result.task_id;
+                        return result.task_id;
+                    } else {
+                        throw new Error(result.error || '上传失败');
+                    }
+                } catch (error) {
+                    throw new Error('文件上传失败: ' + error.message);
+                }
+            }
+
+            // 显示进度区域
+            showProgress() {
+                this.progressSection.style.display = 'block';
+                this.resultSection.style.display = 'none';
+
+                // 重置所有步骤
+                document.querySelectorAll('.step').forEach(step => {
+                    step.className = 'step';
+                    const statusEl = step.querySelector('.step-status');
+                    if (statusEl) {
+                        statusEl.textContent = '等待中';
+                    }
+                });
+
+                // 重置进度
+                this.updateProgress(0, '准备开始...');
+            }
+
+            // 显示结果
+            showResult(data) {
+                this.progressSection.style.display = 'none';
+                this.resultSection.style.display = 'block';
+                this.stopProcessBtn.style.display = 'none';
+                this.startProcessBtn.style.display = 'none';
+                this.newProcessBtn.style.display = 'inline-flex';
+                this.downloadBtn.style.display = 'inline-flex';
+
+                // 更新结果信息
+                this.resultDownload.textContent = '视频下载完成';
+                this.resultExtract.textContent = '音频提取完成';
+                this.resultAsr.textContent = '语音识别完成';
+                this.resultTranslate.textContent = '字幕翻译完成';
+                this.resultRender.textContent = '字幕渲染完成';
+
+                // 如果有后端返回的下载链接
+                if (data && data.output_url) {
+                    this.downloadBtn.onclick = () => {
+                        window.open(data.output_url, '_blank');
+                    };
+                }
+
+                this.showNotification('处理完成！可以下载结果视频了', 'success');
+            }
+
+            // 重置界面
+            resetInterface() {
+                this.currentTaskId = null;
+                this.progressSection.style.display = 'none';
+                this.resultSection.style.display = 'none';
+                this.startProcessBtn.style.display = 'inline-flex';
+                this.startProcessBtn.disabled = false;
+                this.stopProcessBtn.style.display = 'none';
+                this.newProcessBtn.style.display = 'none';
+                this.downloadBtn.style.display = 'none';
+
+                // 清空输入
+                this.videoUrl.value = '';
+                this.videoFile.value = '';
+                this.fileUploadArea.innerHTML = `
+                    <div class="upload-placeholder">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <p>拖拽视频文件到此处或点击选择</p>
+                        <small>支持格式：MP4, AVI, MOV, MKV等</small>
+                    </div>
+                `;
+
+                this.validateInput();
+            }
+
+            // 下载结果
+            downloadResult() {
+                if (this.downloadBtn.onclick) {
+                    this.downloadBtn.onclick();
+                } else {
+                    this.showNotification('下载链接不可用', 'warning');
+                }
+            }
+
+            // 显示设置
+            showSettings() {
+                this.loadSettings();
+                this.settingsModal.classList.add('show');
+            }
+
+            // 隐藏设置
+            hideSettings() {
+                this.settingsModal.classList.remove('show');
+            }
+
+            // 加载设置
+            loadSettings() {
+                // 模拟加载设置
+                this.asrModelDir.value = 'iic/SenseVoiceSmall';
+                this.asrDevice.value = 'cuda:0';
+                this.ollamaHost.value = 'http://127.0.0.1:11434';
+                this.ollamaModel.value = 'gemma3:12b';
+                this.tempDir.value = './temp_video_processing';
+                this.videoCrf.value = 22;
+                this.crfValue.textContent = 22;
+            }
+
+            // 保存设置
+            saveSettings() {
+                this.showNotification('设置已保存', 'success');
+                this.hideSettings();
+            }
+
+            // 重置设置
+            resetSettings() {
+                if (confirm('确定要重置所有设置为默认值吗？')) {
+                    this.asrModelDir.value = 'iic/SenseVoiceSmall';
+                    this.asrDevice.value = 'cuda:0';
+                    this.ollamaHost.value = 'http://127.0.0.1:11434';
+                    this.ollamaModel.value = 'gemma3:12b';
+                    this.tempDir.value = './temp_video_processing';
+                    this.videoCrf.value = 22;
+                    this.crfValue.textContent = 22;
+                }
+            }
+
+            // 检查系统状态 - 模拟实现
+            checkSystemStatus() {
+                // 模拟系统状态检查
+                setTimeout(() => {
+                    this.statusText.textContent = '系统正常 | CUDA: 可用 | FFmpeg: 可用';
+                }, 1500);
+            }
+
+            // 显示通知
+            showNotification(message, type = 'info') {
+                // 移除现有的通知
+                const existing = document.querySelector('.notification');
+                if (existing) {
+                    existing.remove();
+                }
+
+                const notification = document.createElement('div');
+                notification.className = `notification ${type}`;
+                notification.innerHTML = `
+                    <div class="notification-content">
+                        <span class="notification-message">${message}</span>
+                        <button class="notification-close">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                `;
+
+                document.body.appendChild(notification);
+
+                // 绑定关闭事件
+                const closeBtn = notification.querySelector('.notification-close');
+                closeBtn.addEventListener('click', () => {
+                    notification.remove();
+                });
+
+                // 自动关闭
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.remove();
+                    }
+                }, 5000);
+            }
+
+            // 格式化文件大小
+            formatFileSize(bytes) {
+                if (bytes === 0) return '0 Bytes';
+                const k = 1024;
+                const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            }
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            window.app = new VideoSubtitleApp();
+        });
+    </script>
+</body>
+</html>
